@@ -77,7 +77,7 @@ The ZIP appears in `artifacts/SidecarBridge_0.1.0.0.zip`. Plugin runtime is enti
 | Environment | Status |
 | --- | --- |
 | Windows x64, local NTFS, Jellyfin 12.4 | Core and real-server scan tests passed locally |
-| Linux x64 / ARM64 | Implemented; CI runs native filesystem and real-server tests on both architectures; see current CI and [evidence](docs/verification.md) |
+| Linux x64 / ARM64 | Native filesystem tests and installation-ZIP real-server tests passed on both architectures; see [evidence](docs/verification.md) |
 | Docker | Same plugin; needs writable media and a single filesystem/mount for source and destination; deployment not tested locally |
 | SMB/NFS, mergerfs, unusual filesystems | No general compatibility claim; hardlink and identity semantics must be checked on the actual mount |
 | Other Jellyfin versions, macOS | Unsupported in this version |

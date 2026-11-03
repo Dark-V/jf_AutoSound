@@ -1,0 +1,11 @@
+{
+  "sourceCommit": "5eee65fa4974615efee7bde254ea5324ee2c433e",
+  "runUrl": "https://github.com/Dark-V/jf_AutoSound/actions/runs/41696269699",
+  "jellyfinVersion": "12.4.0.0",
+  "jellyfinCommit": "83d0d0e7f76e23e2e085c8ff67d28b772d35967d",
+  "platforms": [
+    { "runner": "windows-2025", "architecture": "x64", "passed": 54, "skipped": 2, "failed": 0, "installationZipIntegration": "passed", "jobId": 126127522360 },
+    { "runner": "ubuntu-24.04", "architecture": "x64", "passed": 55, "skipped": 1, "failed": 0, "installationZipIntegration": "passed", "jobId": 126127521806 },
+    { "runner": "ubuntu-24.04-arm", "architecture": "arm64", "passed": 55, "skipped": 1, "failed": 0, "installationZipIntegration": "passed", "jobId": 126127522341 }
+  ]
+}

@@ -684,5 +684,11 @@
     "signsNotForced": true,
     "explicitSubtitleFlags": true,
     "multiStreamMetadataPreserved": true
+  },
+  "installationPackage": {
+    "version": "0.1.0.0",
+    "sha256": "a9f64ee667e5e4da2d7ba24fe430f888affbc1d0246fa27c21c5e81e5fd6012b",
+    "manifestAndBothAssembliesLoaded": true,
+    "sourceCommit": "5eee65fa4974615efee7bde254ea5324ee2c433e"
   }
 }
