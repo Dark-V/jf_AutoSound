@@ -12,7 +12,7 @@ Recorded 2026-11-04. Jellyfin v12.4 commit `83d0d0e7f76e23e2e085c8ff67d28b772d35
 - Minimal real-server A/B prototype: passed before feature expansion.
 - Full real-server test: passed for first-scan external audio/subtitles, one-scan later audio on unchanged video, source replacement, stable registry on an unchanged scan, admin preview and rejection of anonymous diagnostic access. The final test also checks reserved titles, flags and multi-stream metadata; see the committed sanitized proof for the final run.
 - Original fixture hashes and hardlink identities were checked. The video was not edited to force an update. No per-item refresh endpoint was called.
-- The final installation ZIP (including `meta.json` and both whitelisted assemblies) was installed and tested separately. Repackaging identical built DLLs produced the same ZIP SHA-256. The local package checksum is recorded in `tests/evidence/windows-proof.json`.
+- The final installation ZIP (including `meta.json` and both whitelisted assemblies) was installed and tested separately. Repackaging identical built DLLs produced the same ZIP SHA-256. The validated local package checksum is recorded in `tests/evidence/windows-proof.json`. A later MIT-license-only repackaging is recorded separately there; every non-license ZIP entry was verified byte-for-byte unchanged.
 
 Raw local paths/tokens are not committed. `tests/evidence/windows-proof.json` contains sanitized stream evidence. The unredacted disposable server log and original proof are development intermediates only. CI uploads fresh per-platform `proof.json`, server logs, TRX results and package artifacts for each run.
 

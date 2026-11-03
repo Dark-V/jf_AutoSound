@@ -84,4 +84,4 @@ The ZIP appears in `artifacts/SidecarBridge_0.1.0.0.zip`. Plugin runtime is enti
 
 A hardlink shares file contents: editing through either name edits the same file. The plugin does not repair sync or differences between cuts. Multi-stream MKA files keep their embedded per-stream metadata; a filename cannot rename each stream. Reserved words in studio titles need reversible escaping because Jellyfin 12.4 recognizes some flags by substring. See [naming](docs/configuration.md#titles-languages-and-flags), [architecture](docs/architecture.md) and [limits](docs/limitations.md).
 
-GPL-2.0-or-later. Original icon and explanatory diagrams are included as editable SVG and PNG. This is an independent plugin, not an official Jellyfin project.
+MIT. Original icon and explanatory diagrams are included as editable SVG and PNG. This is an independent plugin, not an official Jellyfin project.

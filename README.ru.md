@@ -81,4 +81,4 @@ python tools/package.py
 
 Публичный GitHub Release не опубликован. Установочный ZIP готовится локально и в CI; каталог `manifest.json` пока не содержит опубликованных версий. Рабочий сервер и реальная медиатека при разработке не менялись.
 
-Подробности: [Linux, Docker, Windows](docs/installation.md), [языки и флаги](docs/configuration.md), [интеграция в сканирование](docs/architecture.md), [ограничения](docs/limitations.md). Лицензия GPL-2.0-or-later. Иконка и две схемы входят в исходники как SVG и PNG.
+Подробности: [Linux, Docker, Windows](docs/installation.md), [языки и флаги](docs/configuration.md), [интеграция в сканирование](docs/architecture.md), [ограничения](docs/limitations.md). Лицензия MIT. Иконка и две схемы входят в исходники как SVG и PNG.

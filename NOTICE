@@ -1,8 +1,8 @@
 Sidecar Bridge / jf_AutoSound
 Copyright (C) 2026 Dark-V
 
-This project is licensed under GNU GPL version 2 or, at your option, any later version.
-See LICENSE for the full license text. SPDX-License-Identifier: GPL-2.0-or-later
+This project is licensed under the MIT License.
+See LICENSE for the full license text. SPDX-License-Identifier: MIT
 
 The plugin uses Jellyfin public interfaces and libraries under their respective licenses.
 Jellyfin server assemblies are not redistributed in the installation package.
