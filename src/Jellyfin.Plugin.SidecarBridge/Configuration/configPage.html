@@ -1,0 +1,99 @@
+<!doctype html>
+<html><head><title>Sidecar Bridge</title></head><body>
+<div id="SidecarBridgePage" data-role="page" class="page type-interior pluginConfigurationPage">
+  <div data-role="content"><div class="content-primary" style="max-width:70em;margin:auto">
+    <h1>Sidecar Bridge</h1>
+    <p>External audio and subtitles from nested folders, connected with hardlinks during a normal library scan.</p>
+    <form id="sbForm">
+      <h2>Enabled libraries / Библиотеки</h2>
+      <p>Nothing is enabled by default. Original files stay in place. Filesystems must support hardlinks.</p>
+      <div id="sbLibraries"></div>
+      <label><input id="sbAudio" type="checkbox"> Audio / Озвучки</label><br>
+      <label><input id="sbSubs" type="checkbox"> Subtitles / Субтитры</label>
+      <p><label>Minimum file age, seconds / Возраст файла: <input id="sbAge" type="number" min="1" max="86400"></label></p>
+      <p><label>Search depth / Глубина поиска: <input id="sbDepth" type="number" min="0" max="12"></label></p>
+      <p><label>Additional parent levels / Уровней вверх: <input id="sbParents" type="number" min="0" max="3"></label></p>
+      <label><input id="sbCleanup" type="checkbox"> Remove verified owned links whose sources are missing / Удалять свои ссылки на удалённые исходники</label>
+      <p>Cleanup is off by default. Source replacements update only links recorded as owned by this plugin.</p>
+      <details><summary>Custom directory and language rules / Правила каталогов и языков</summary>
+        <p>Optional. Built-in Audio, Sound, Subs, Subtitles and language prefixes work without regex.
+          Rules use a 100 ms regex timeout. First matching rule wins. See the repository configuration guide.</p>
+        <label>DirectoryRules JSON<textarea id="sbRules" rows="10" style="display:block;width:100%;font-family:monospace"></textarea></label>
+        <label>ExplicitMappings JSON<textarea id="sbMappings" rows="6" style="display:block;width:100%;font-family:monospace"></textarea></label>
+      </details>
+      <p><button is="emby-button" type="submit" class="raised button-submit"><span>Save / Сохранить</span></button></p>
+    </form>
+    <h2>Preview / Предпросмотр</h2>
+    <p>Uses the current form values and makes no filesystem or registry changes.</p>
+    <label>Library / Библиотека <select id="sbPreviewLibrary"></select></label>
+    <p><label>Full video path as seen by Jellyfin / Путь видео на сервере <input id="sbVideo" type="text" style="width:100%"></label></p>
+    <button id="sbPreview" type="button" is="emby-button" class="raised">Preview / Проверить</button>
+    <button id="sbReport" type="button" is="emby-button" class="raised">Recent report / Отчёт</button>
+    <p id="sbStatus" role="status"></p>
+    <div style="overflow:auto"><table style="width:100%;text-align:left"><thead><tr><th>Status</th><th>Source</th><th>Destination</th><th>Reason</th></tr></thead><tbody id="sbRows"></tbody></table></div>
+  </div></div>
+  <script>
+  (function () {
+    'use strict';
+    const id = '89654c7e-bf44-4e9f-8adf-2219fe61fa36';
+    const page = document.querySelector('#SidecarBridgePage');
+    const el = selector => page.querySelector(selector);
+    let config;
+    function status(text) { el('#sbStatus').textContent = text; }
+    function request(path, method, body) {
+      return ApiClient.ajax({ type: method || 'GET', url: ApiClient.getUrl('SidecarBridge/' + path),
+        dataType: 'json', contentType: 'application/json', data: body ? JSON.stringify(body) : undefined });
+    }
+    function rules() {
+      const result = Object.assign({}, config.Rules);
+      result.EnableAudio = el('#sbAudio').checked; result.EnableSubtitles = el('#sbSubs').checked;
+      result.MinimumAgeSeconds = Number(el('#sbAge').value); result.MaximumDepth = Number(el('#sbDepth').value);
+      result.ScopeParentLevels = Number(el('#sbParents').value); result.RemoveStaleOwnedLinks = el('#sbCleanup').checked;
+      result.DirectoryRules = JSON.parse(el('#sbRules').value); result.ExplicitMappings = JSON.parse(el('#sbMappings').value);
+      if (!Array.isArray(result.DirectoryRules) || !Array.isArray(result.ExplicitMappings)) throw new Error('Rules and mappings must be JSON arrays');
+      return result;
+    }
+    function rows(entries) {
+      const body = el('#sbRows'); body.replaceChildren();
+      for (const item of entries) {
+        const tr = document.createElement('tr');
+        for (const key of ['Status','Source','Destination','Reason']) { const td = document.createElement('td'); td.textContent = item[key] || ''; tr.appendChild(td); }
+        body.appendChild(tr);
+      }
+      status(entries.length + ' entries / записей');
+    }
+    page.addEventListener('pageshow', async function () {
+      try {
+        [config] = await Promise.all([ApiClient.getPluginConfiguration(id)]);
+        const libraries = await request('Libraries');
+        el('#sbLibraries').replaceChildren(); el('#sbPreviewLibrary').replaceChildren();
+        for (const library of libraries) {
+          const label = document.createElement('label'); label.style.display = 'block';
+          const box = document.createElement('input'); box.type = 'checkbox'; box.value = library.Id; box.className = 'sbLibrary';
+          box.checked = config.EnabledLibraryIds.some(value => value.replace(/-/g,'').toLowerCase() === library.Id.replace(/-/g,'').toLowerCase());
+          label.append(box, document.createTextNode(' ' + library.Name)); el('#sbLibraries').appendChild(label);
+          const option = document.createElement('option'); option.value = library.Id; option.textContent = library.Name; el('#sbPreviewLibrary').appendChild(option);
+        }
+        el('#sbAudio').checked = config.Rules.EnableAudio; el('#sbSubs').checked = config.Rules.EnableSubtitles;
+        el('#sbAge').value = config.Rules.MinimumAgeSeconds; el('#sbDepth').value = config.Rules.MaximumDepth;
+        el('#sbParents').value = config.Rules.ScopeParentLevels; el('#sbCleanup').checked = config.Rules.RemoveStaleOwnedLinks;
+        el('#sbRules').value = JSON.stringify(config.Rules.DirectoryRules, null, 2); el('#sbMappings').value = JSON.stringify(config.Rules.ExplicitMappings, null, 2);
+      } catch (error) { status('Cannot load settings: ' + String(error)); }
+    });
+    el('#sbForm').addEventListener('submit', async function (event) {
+      event.preventDefault();
+      try {
+        config.Rules = rules(); config.EnabledLibraryIds = Array.from(page.querySelectorAll('.sbLibrary:checked'), box => box.value);
+        await ApiClient.updatePluginConfiguration(id, config); status('Saved / Сохранено');
+      } catch (error) { status('Save failed: ' + String(error)); }
+    });
+    el('#sbPreview').addEventListener('click', async function () {
+      try { const result = await request('Preview','POST',{ LibraryId:el('#sbPreviewLibrary').value, VideoPath:el('#sbVideo').value, Rules:rules() }); rows(result.Entries); }
+      catch (error) { status('Preview failed: ' + String(error)); }
+    });
+    el('#sbReport').addEventListener('click', async function () {
+      try { rows(await request('Report')); } catch (error) { status('Report failed: ' + String(error)); }
+    });
+  })();
+  </script>
+</div></body></html>

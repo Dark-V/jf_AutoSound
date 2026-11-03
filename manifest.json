@@ -1,0 +1,11 @@
+[
+  {
+    "guid": "89654c7e-bf44-4e9f-8adf-2219fe61fa36",
+    "name": "Sidecar Bridge",
+    "description": "Connect nested external audio and subtitles with hardlinks during ordinary Jellyfin library scans.",
+    "overview": "Nested audio and subtitles, ready for Jellyfin.",
+    "owner": "Dark-V",
+    "category": "General",
+    "versions": []
+  }
+]

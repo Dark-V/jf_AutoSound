@@ -1,0 +1,66 @@
+name: Build and one-scan integration
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install fixture generator (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install fixture generator (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install ffmpeg --yes --no-progress
+          "C:\ProgramData\chocolatey\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Restore pinned plugin and test dependencies
+        run: |
+          dotnet restore src/Jellyfin.Plugin.SidecarBridge --locked-mode
+          dotnet restore tests/SidecarBridge.Tests --locked-mode
+      - name: Core and native filesystem tests
+        run: dotnet test tests/SidecarBridge.Tests -c Release --no-restore --logger "trx;LogFileName=core.trx"
+      - name: Build plugin
+        run: dotnet build src/Jellyfin.Plugin.SidecarBridge -c Release --no-restore
+      - name: Fetch pinned Jellyfin source
+        run: git clone --depth 1 --branch v12.4 https://github.com/jellyfin/jellyfin.git integration-work/jellyfin
+      - name: Verify server source commit
+        shell: python
+        run: |
+          import subprocess
+          sha=subprocess.check_output(['git','-C','integration-work/jellyfin','rev-parse','HEAD'],text=True).strip()
+          assert sha=='83d0d0e7f76e23e2e085c8ff67d28b772d35967d',sha
+      - name: Build actual Jellyfin server
+        run: dotnet publish integration-work/jellyfin/Jellyfin.Server/Jellyfin.Server.csproj -c Release -o integration-work/server -p:EnableNETAnalyzers=false -p:RunAnalyzers=false
+      - name: Single-scan MediaStreams integration
+        run: python tests/integration/one_scan.py --server integration-work/server/jellyfin.dll --plugin src/Jellyfin.Plugin.SidecarBridge/bin/Release/net10.0 --work integration-work/proof
+      - name: Create local installation artifact
+        run: python tools/package.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: proof-and-package-${{ matrix.os }}
+          path: |
+            artifacts/
+            tests/SidecarBridge.Tests/TestResults/*.trx
+            integration-work/proof/proof.json
+            integration-work/proof/server.log
