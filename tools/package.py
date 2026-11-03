@@ -15,7 +15,7 @@ a.output.mkdir(parents=True,exist_ok=True)
 meta={'category':'General','guid':GUID,'name':'Sidecar Bridge','overview':'Nested audio and subtitles, connected with hardlinks.',
     'description':'Connect external audio and subtitles during ordinary Jellyfin library scans.',
     'owner':'Dark-V','targetAbi':'12.4.0.0','version':VERSION,'timestamp':'2026-11-04T00:00:00Z',
-    'status':'Active','autoUpdate':False,'imagePath':'icon.png','assemblies':['Jellyfin.Plugin.SidecarBridge.dll']}
+    'status':'Active','autoUpdate':False,'imagePath':'icon.png','assemblies':['SidecarBridge.Core.dll','Jellyfin.Plugin.SidecarBridge.dll']}
 payload={name:(a.build_dir/name).read_bytes() for name in ['Jellyfin.Plugin.SidecarBridge.dll','SidecarBridge.Core.dll']}
 payload['meta.json']=(json.dumps(meta,ensure_ascii=False,indent=2)+'\n').encode()
 payload['icon.png']=(ROOT/'docs/assets/icon.png').read_bytes()

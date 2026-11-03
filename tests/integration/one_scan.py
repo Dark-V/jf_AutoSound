@@ -14,10 +14,13 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 
 p = argparse.ArgumentParser()
 p.add_argument('--server', required=True, type=Path, help='Published jellyfin.dll')
-p.add_argument('--plugin', required=True, type=Path, help='Directory containing built plugin DLLs')
+package=p.add_mutually_exclusive_group(required=True)
+package.add_argument('--plugin', type=Path, help='Directory containing built plugin DLLs')
+package.add_argument('--plugin-zip', type=Path, help='Actual installation ZIP, including its manifest')
 p.add_argument('--dotnet', default='dotnet')
 p.add_argument('--ffmpeg', default='ffmpeg')
 p.add_argument('--work', required=True, type=Path, help='A new, empty disposable directory')
@@ -61,10 +64,16 @@ config = root / 'config'
 plugin = data / 'plugins' / 'SidecarBridge_0.1.0.0'
 plugin.mkdir(parents=True)
 config.mkdir()
-for name in ('Jellyfin.Plugin.SidecarBridge.dll','SidecarBridge.Core.dll'):
-    shutil.copy2(a.plugin.resolve()/name, plugin/name)
-(plugin/'meta.json').write_text(json.dumps({'name':'Sidecar Bridge','guid':'89654c7e-bf44-4e9f-8adf-2219fe61fa36',
-    'version':'0.1.0.0','targetAbi':'12.4.0.0','status':'Active','autoUpdate':False}),encoding='utf-8')
+if a.plugin_zip:
+    with zipfile.ZipFile(a.plugin_zip) as archive:
+        allowed={'Jellyfin.Plugin.SidecarBridge.dll','SidecarBridge.Core.dll','meta.json','icon.png','LICENSE','INSTALL.txt'}
+        assert set(archive.namelist())==allowed,'Unexpected installation ZIP entries'
+        for name in archive.namelist(): (plugin/name).write_bytes(archive.read(name))
+else:
+    for name in ('Jellyfin.Plugin.SidecarBridge.dll','SidecarBridge.Core.dll'):
+        shutil.copy2(a.plugin.resolve()/name, plugin/name)
+    (plugin/'meta.json').write_text(json.dumps({'name':'Sidecar Bridge','guid':'89654c7e-bf44-4e9f-8adf-2219fe61fa36',
+        'version':'0.1.0.0','targetAbi':'12.4.0.0','status':'Active','autoUpdate':False}),encoding='utf-8')
 with socket.socket() as sock:
     sock.bind(('127.0.0.1',0))
     port = sock.getsockname()[1]
