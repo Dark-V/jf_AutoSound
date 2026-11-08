@@ -36,6 +36,8 @@ On an initial/full refresh Jellyfin may also have selected its ordinary probe. N
 
 ## Test sequence
 
+When the scanned item is the primary of a linked version group, the provider processes each linked video in its own enabled library and saves its native probe result. Jellyfin refreshes locally owned alternate files through its own scan path. The playback API regression checks the exact track identity for both linked versions after a restart and one scan.
+
 The real-server test starts a disposable server built from the pinned tag. It disables library realtime monitoring and automatic metadata interval refresh, generates a video/audio/subtitle fixture, enables the plugin, issues **one ordinary scheduled library scan**, waits for that task to finish, and reads the item API with `MediaStreams`.
 
 It then adds a new audio file without changing the video, issues **one** more ordinary scan, and verifies both the new stream record and file identity. Additional cases cover source replacement, an unchanged follow-up scan, preview and access control. The first A/B prototype passed before the matcher/settings expansion; the full implementation is tested separately. See [verification](verification.md).

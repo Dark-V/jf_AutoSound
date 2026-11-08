@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1.0
+
+- Attach external tracks to linked versions that Jellyfin skips during an ordinary scan. Each version is matched and probed using its own video path.
+- Verify the tracks of both linked episode versions through Jellyfin's playback API.
+
 ## 1.0.0.0
 
 - First catalog release for Jellyfin 12.4. Install Sidecar Bridge from the plugin catalog and restart Jellyfin.

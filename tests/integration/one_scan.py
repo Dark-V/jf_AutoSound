@@ -206,6 +206,61 @@ def run_task(key):
     raise AssertionError(f'{key} timeout')
 
 
+def check_linked_episodes(user_id, settings):
+    shows = root / 'shows'
+    series = shows / 'Bridge Series'
+    series.mkdir(parents=True)
+    regular = series / 'Bridge Series S01E01.mkv'
+    special = series / 'Bridge Series S01E02 Special.mkv'
+    # Model an imported special given the regular episode's number by metadata.
+    special.with_suffix('.nfo').write_text(
+        '<episodedetails><title>Special</title><season>1</season><episode>1</episode></episodedetails>', encoding='utf-8')
+    sources = {}
+    for episode in (regular, special):
+        shutil.copy2(video, episode)
+        subtitle = series / 'Rus Subs' / 'Translation' / (episode.stem + '.srt')
+        subtitle.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(sub, subtitle)
+        sources[episode] = {'Subtitle': subtitle}
+    dub = series / 'Rus Sound' / 'Studio' / (regular.stem + '.mka')
+    dub.parent.mkdir(parents=True)
+    shutil.copy2(track, dub)
+    sources[regular]['Audio'] = dub
+
+    query = urllib.parse.urlencode({'name': 'Bridge Shows', 'collectionType': 'tvshows', 'paths': str(shows)})
+    api('POST', '/Library/VirtualFolders?' + query, {'LibraryOptions': {
+        'EnableRealtimeMonitor': False, 'EnableInternetProviders': False, 'EnableAutomaticSeriesGrouping': False,
+        'TypeOptions': [{'Type': kind, 'MetadataFetchers': [], 'ImageFetchers': []} for kind in ('Series', 'Season', 'Episode')],
+    }})
+    tv_library = next(f for f in api('GET', '/Library/VirtualFolders') if f['Name'] == 'Bridge Shows')
+    run_task('RefreshLibrary')
+    query = urllib.parse.urlencode({'userId': user_id, 'Recursive': 'true', 'IncludeItemTypes': 'Episode', 'Fields': 'Path'})
+    items_url = '/Items?' + query
+    items = {i['Path']: i['Id'] for i in api('GET', items_url)['Items'] if i.get('Path')}
+    assert all(str(p) in items for p in sources), items
+    query = urllib.parse.urlencode({'ids': ','.join(items[str(p)] for p in sources)})
+    api('POST', '/Videos/MergeVersions?' + query)
+    settings['EnabledLibraryIds'].append(tv_library['ItemId'])
+    api('POST', plugin_config_route, settings)
+    api('POST', '/System/Shutdown')
+    server.wait(timeout=30)
+    start_server()
+    run_task('RefreshLibrary')
+
+    visible = [i for i in api('GET', items_url)['Items'] if i.get('Path') in items]
+    assert len(visible) == 1, visible
+    playback = api('GET', f"/Items/{visible[0]['Id']}/PlaybackInfo?userId={user_id}")
+    media_sources = {Path(item['Path']): item for item in playback['MediaSources']}
+    assert set(media_sources) == set(sources), media_sources.keys()
+    for episode, expected in sources.items():
+        external = [s for s in media_sources[episode]['MediaStreams'] if s.get('IsExternal')]
+        assert len(external) == len(expected), (episode, external)
+        for stream in external:
+            assert stream.get('Language') == 'rus' and os.path.samefile(stream['Path'], expected[stream['Type']]), stream
+    print('PASS linked episode versions each expose their own tracks after one ordinary scan', flush=True)
+    return {'versionCount': len(media_sources), 'scanRequestsAfterMerge': 1, 'pathsAndStreamsVerified': True}
+
+
 try:
     info = start_server()
     server_abi = '.'.join((info['Version'].split('.') + ['0'])[:4])
@@ -332,6 +387,7 @@ try:
     except urllib.error.HTTPError as ex: assert ex.code in (401,403),ex.code
     proof['D']={'anonymousDiagnosticsDenied':True,'previewReadOnly':True}
     proof['E']={'reservedStudioNotAFlag':True,'signsNotForced':True,'explicitSubtitleFlags':True,'multiStreamMetadataPreserved':True}
+    proof['linkedEpisodes'] = check_linked_episodes(user, config_body)
     for path,digest in originals.items(): assert hashlib.sha256(Path(path).read_bytes()).hexdigest()==digest
     (root/'proof.json').write_text(json.dumps(proof,ensure_ascii=False,indent=2),encoding='utf-8')
     print('PASS A: first scan registers hardlinked audio + subtitle in MediaStreams')

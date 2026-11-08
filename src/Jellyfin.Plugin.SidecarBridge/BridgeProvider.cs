@@ -48,14 +48,29 @@ public sealed class BridgeProvider(ILibraryManager library, IProviderManager pro
 
     public bool HasChanged(BaseItem item, IDirectoryService directoryService)
     {
-        var context = Context(item);
-        if (context is null) return false;
+        if (item is not Video video) return false;
         // Always recheck enabled items. Scope discovery is shared
         // by this scan's directory service; no permanent done marker or TTL hides arrivals.
-        return true;
+        return Context(video) is not null || LinkedVersions(video).Any(version => Context(version) is not null);
     }
 
+    private IEnumerable<Video> LinkedVersions(Video item) =>
+        item.PrimaryVersionId is null && item.LinkedAlternateVersions.Length > 0
+            ? library.GetLinkedAlternateVersions(item).Where(version =>
+                version.PrimaryVersionId == item.Id && version.GetType() == item.GetType())
+            : [];
+
     private async Task<ItemUpdateType> Fetch<T>(T item, MetadataRefreshOptions options, CancellationToken ct) where T : Video
+    {
+        var update = await Process(item, options, false, ct).ConfigureAwait(false);
+        // Jellyfin refreshes locally owned versions itself. Linked versions can be hidden
+        // from the scan, so process them using their own file path and media stream ID.
+        foreach (var version in LinkedVersions(item).OfType<T>())
+            await Process(version, options, true, ct).ConfigureAwait(false);
+        return update;
+    }
+
+    private async Task<ItemUpdateType> Process<T>(T item, MetadataRefreshOptions options, bool saveLinkedVersion, CancellationToken ct) where T : Video
     {
         var context = Context(item);
         if (context is null) return ItemUpdateType.None;
@@ -71,6 +86,8 @@ public sealed class BridgeProvider(ILibraryManager library, IProviderManager pro
             if (probe is null) throw new InvalidOperationException("Jellyfin 12.4 native ProbeProvider is unavailable; links exist but stream registration is unconfirmed.");
             // No RefreshMetadata, queue, second scan, reflection, or external process.
             var update = await probe.FetchAsync(item, options, ct).ConfigureAwait(false);
+            if (saveLinkedVersion && update != ItemUpdateType.None)
+                await item.UpdateToRepositoryAsync(update, ct).ConfigureAwait(false);
             var registered = streams.GetMediaStreams(new MediaStreamQuery { ItemId = item.Id })
                 .Where(s => s.IsExternal).Select(s => s.Path).ToHashSet(PathSafety.Comparer);
             if ((result.ExpectedPaths ?? []).All(registered.Contains))
