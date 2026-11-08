@@ -1,5 +1,15 @@
 # Verification record
 
+## Catalog release 1.0.0.0
+
+GitHub Actions built and tested the tagged source `d1e1fd697a22abf9ccacbf7e150a94d07dbc771b` on Windows x64, Linux x64 and Linux ARM64. Windows passed 54 tests with two Linux tests skipped. Each Linux runner passed 55 tests with one Windows test skipped. The three runners also installed through Jellyfin's package API, restarted the server and passed the scan integration. The publish job uploaded the tested Linux x64 ZIP and committed its catalog entry. [Release workflow run](https://github.com/Dark-V/jf_AutoSound/actions/runs/42492452466)
+
+A separate Jellyfin 12.4.0 instance fetched the public catalog and installed `1.0.0.0`. The plugin reported `Active` after restart. An existing `0.1.0.0` installation upgraded through the catalog with its settings intact. A second upgrade used Jellyfin's **Update Plugins** task with auto-update enabled on the older test fixture. Each run passed the normal-scan stream checks and the idempotence check. [Public catalog](https://raw.githubusercontent.com/Dark-V/jf_AutoSound/refs/heads/main/manifest.json)
+
+The public ZIP downloaded successfully. Its MD5 `17456332c5770371db6188820123d9de` matches the manifest. Its SHA-256 `75943327a47bb1cee3b09a3ee2adb272fc3c69be1c0c61fac1d501ddd824a0a8` matches the tested release artifact. The ZIP contains both whitelisted assemblies and ABI `12.4.0.0`. [Release assets](https://github.com/Dark-V/jf_AutoSound/releases/tag/v1.0.0.0)
+
+## Development build 0.1.0.0
+
 Recorded 2026-11-04. Jellyfin v12.4 commit `83d0d0e7f76e23e2e085c8ff67d28b772d35967d`. SDK 10.0.403, runtime 10.0.14, Windows x64, local NTFS.
 
 **Remote CI passed on Windows x64, Linux x64 and native Linux ARM64:** [run 41696269699](https://github.com/Dark-V/jf_AutoSound/actions/runs/41696269699), source commit `5eee65fa4974615efee7bde254ea5324ee2c433e`. Each platform built the server, installed the actual ZIP and passed the complete single-scan integration. Core results: Windows **54 passed / 2 Linux-only skipped**; each Linux architecture **55 passed / 1 Windows-only skipped**; zero failures.

@@ -32,6 +32,6 @@ In Docker, place both sides of the link inside a common media bind mount. For ex
 
 Choose Dashboard → Plugins → Sidecar Bridge, enable libraries, save and preview. The plugin starts with no enabled libraries. Newly written files are deferred by the default 30-second age guard; the next ordinary scheduled/manual scan retries them.
 
-To stop new links, disable libraries or uninstall the plugin while Jellyfin is stopped. Existing hardlinks remain and Jellyfin can continue reading them. Automatic missing-source cleanup is off by default. Deleting an original path does not free the media's bytes while another hardlink still exists.
+To stop creating links, disable libraries in the settings or uninstall the plugin from the dashboard and restart Jellyfin. Jellyfin can continue reading the existing hardlinks. Automatic missing-source cleanup starts disabled. Disk space is reclaimed after the last link to a file is removed.
 
 Ownership and retry state are stored under Jellyfin's data path in `sidecar-bridge/links.json`. Back up this file with server configuration. Losing it makes old links unowned; the plugin will not adopt or delete them. A corrupt registry fails closed and needs administrator review.
