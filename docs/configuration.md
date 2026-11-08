@@ -6,6 +6,8 @@ The settings page and `/SidecarBridge/Libraries`, `/SidecarBridge/Preview`, `/Si
 
 No libraries are enabled initially. Audio and subtitles have separate switches. The video directory is the default search scope. When its name is `Video`, the scope is its parent, allowing sibling audio/subtitle directories.
 
+To process just one series, enable its library and enter its absolute server path in **Only this folder**. The scan and preview stay inside that folder and its subfolders, even if additional parent levels are configured. Leave the field empty to process all folders in the enabled libraries.
+
 Nested folders containing `Audio`, `Sound`, `Sub`, `Subs`, `Subtitles`, `озвучка` or `субтитры` are recognized. Examples: `Rus Sound/NDA Studio`, `English Audio/Team`, `RUS Sound [Studio]`, `Rus Subs [Group]`. A generic folder name is not a language.
 
 The leaf folder (or its final `[Studio]` part) supplies the title. A language prefix such as `Rus`, `English`, `日本語` or an explicit ISO suffix supplies language. If no language is explicit, it stays undefined.

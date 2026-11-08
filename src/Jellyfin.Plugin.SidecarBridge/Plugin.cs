@@ -23,5 +23,6 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 public sealed class PluginConfiguration : BasePluginConfiguration
 {
     public string[] EnabledLibraryIds { get; set; } = [];
+    public string OnlyFolder { get; set; } = "";
     public global::SidecarBridge.Core.BridgeSettings Rules { get; set; } = new();
 }

@@ -29,21 +29,41 @@ public sealed class BridgeProvider(ILibraryManager library, IProviderManager pro
     private (string Root, string Scope)? Context(BaseItem item)
     {
         if (item is not Video || !item.IsFileProtocol || string.IsNullOrEmpty(item.Path)) return null;
-        var enabled = Plugin.Instance.Configuration.EnabledLibraryIds;
+        var configuration = Plugin.Instance.Configuration;
+        var enabled = configuration.EnabledLibraryIds;
         var folder = library.GetVirtualFolders().FirstOrDefault(f =>
             enabled.Any(id => string.Equals(id.Replace("-", ""), f.ItemId.Replace("-", ""), StringComparison.OrdinalIgnoreCase)) &&
             f.Locations.Any(root => PathSafety.IsWithin(root, item.Path)));
         var root = folder?.Locations.Where(r => PathSafety.IsWithin(r, item.Path)).OrderByDescending(r => r.Length).FirstOrDefault();
-        if (root is null) return null;
-        var parent = Path.GetDirectoryName(item.Path)!;
-        var scope = Path.GetFileName(parent).Equals("Video", StringComparison.OrdinalIgnoreCase) ? Path.GetDirectoryName(parent)! : parent;
-        for (int i = 0; i < Math.Clamp(Plugin.Instance.Configuration.Rules.ScopeParentLevels, 0, 3); i++)
+        root = root is null ? null : RestrictRoot(root, configuration.OnlyFolder);
+        if (root is null || !PathSafety.IsWithin(root, item.Path)) return null;
+        return (root, SearchScope(root, item.Path, configuration.Rules.ScopeParentLevels));
+    }
+
+    internal static string? RestrictRoot(string root, string? onlyFolder)
+    {
+        if (string.IsNullOrEmpty(onlyFolder)) return root;
+        try
+        {
+            return Path.IsPathFullyQualified(onlyFolder) && PathSafety.IsWithin(root, onlyFolder)
+                ? Path.GetFullPath(onlyFolder)
+                : null;
+        }
+        catch (ArgumentException) { return null; }
+    }
+
+    internal static string SearchScope(string root, string video, int parentLevels)
+    {
+        var scope = Path.GetDirectoryName(video)!;
+        if (Path.GetFileName(scope).Equals("Video", StringComparison.OrdinalIgnoreCase) &&
+            Path.GetDirectoryName(scope) is { } parent && PathSafety.IsWithin(root, parent)) scope = parent;
+        for (int i = 0; i < Math.Clamp(parentLevels, 0, 3); i++)
         {
             var ancestor = Path.GetDirectoryName(scope);
             if (ancestor is null || !PathSafety.IsWithin(root, ancestor)) break;
             scope = ancestor;
         }
-        return PathSafety.IsWithin(root, scope) ? (root, scope) : null;
+        return scope;
     }
 
     public bool HasChanged(BaseItem item, IDirectoryService directoryService)

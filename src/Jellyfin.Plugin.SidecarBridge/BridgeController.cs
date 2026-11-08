@@ -21,6 +21,7 @@ public sealed class BridgeController(ILibraryManager library) : ControllerBase
     {
         public string LibraryId { get; set; } = "";
         public string VideoPath { get; set; } = "";
+        public string? OnlyFolder { get; set; }
         public BridgeSettings? Rules { get; set; }
     }
     [HttpPost("Preview")]
@@ -30,17 +31,13 @@ public sealed class BridgeController(ILibraryManager library) : ControllerBase
         var root = folder?.Locations.Where(r => PathSafety.IsWithin(r, request.VideoPath)).OrderByDescending(r => r.Length).FirstOrDefault();
         if (root is null || !System.IO.File.Exists(request.VideoPath) || Path.GetExtension(request.VideoPath).ToLowerInvariant() is not (".mkv" or ".mp4"))
             return BadRequest("Choose an existing MKV/MP4 inside the selected Jellyfin library.");
+        root = BridgeProvider.RestrictRoot(root, request.OnlyFolder);
+        if (root is null || !PathSafety.IsWithin(root, request.VideoPath))
+            return BadRequest("Choose a video inside the folder limit and the selected library.");
         try
         {
             var rules = request.Rules ?? Plugin.Instance.Configuration.Rules;
-            var scope = Path.GetDirectoryName(request.VideoPath)!;
-            if (Path.GetFileName(scope).Equals("Video", StringComparison.OrdinalIgnoreCase)) scope = Path.GetDirectoryName(scope)!;
-            for (int i = 0; i < Math.Clamp(rules.ScopeParentLevels, 0, 3); i++)
-            {
-                var ancestor = Path.GetDirectoryName(scope);
-                if (ancestor is null || !PathSafety.IsWithin(root, ancestor)) break;
-                scope = ancestor;
-            }
+            var scope = BridgeProvider.SearchScope(root, request.VideoPath, rules.ScopeParentLevels);
             return Ok(await BridgeProvider.Engine.ProcessAsync(root, scope, request.VideoPath, rules, new object(), true, ct).ConfigureAwait(false));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)

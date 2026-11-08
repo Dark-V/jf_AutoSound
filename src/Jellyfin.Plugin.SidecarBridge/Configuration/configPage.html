@@ -8,6 +8,9 @@
       <h2>Enabled libraries / Библиотеки</h2>
       <p>Nothing is enabled by default. Original files stay in place. Filesystems must support hardlinks.</p>
       <div id="sbLibraries"></div>
+      <p><label>Only this folder / Только эта папка <input id="sbOnlyFolder" type="text" style="width:100%"></label></p>
+      <p>Optional absolute path on the Jellyfin server. Applies within enabled libraries, including subfolders.<br>
+        Необязательный путь на сервере Jellyfin. Ограничивает обработку во включённых библиотеках этой папкой и её подпапками.</p>
       <label><input id="sbAudio" type="checkbox"> Audio / Озвучки</label><br>
       <label><input id="sbSubs" type="checkbox"> Subtitles / Субтитры</label>
       <p><label>Minimum file age, seconds / Возраст файла: <input id="sbAge" type="number" min="1" max="86400"></label></p>
@@ -74,6 +77,7 @@
           label.append(box, document.createTextNode(' ' + library.Name)); el('#sbLibraries').appendChild(label);
           const option = document.createElement('option'); option.value = library.Id; option.textContent = library.Name; el('#sbPreviewLibrary').appendChild(option);
         }
+        el('#sbOnlyFolder').value = config.OnlyFolder || '';
         el('#sbAudio').checked = config.Rules.EnableAudio; el('#sbSubs').checked = config.Rules.EnableSubtitles;
         el('#sbAge').value = config.Rules.MinimumAgeSeconds; el('#sbDepth').value = config.Rules.MaximumDepth;
         el('#sbParents').value = config.Rules.ScopeParentLevels; el('#sbCleanup').checked = config.Rules.RemoveStaleOwnedLinks;
@@ -84,11 +88,12 @@
       event.preventDefault();
       try {
         config.Rules = rules(); config.EnabledLibraryIds = Array.from(page.querySelectorAll('.sbLibrary:checked'), box => box.value);
+        config.OnlyFolder = el('#sbOnlyFolder').value.trim();
         await ApiClient.updatePluginConfiguration(id, config); status('Saved / Сохранено');
       } catch (error) { status('Save failed: ' + String(error)); }
     });
     el('#sbPreview').addEventListener('click', async function () {
-      try { const result = await request('Preview','POST',{ LibraryId:el('#sbPreviewLibrary').value, VideoPath:el('#sbVideo').value, Rules:rules() }); rows(result.Entries); }
+      try { const result = await request('Preview','POST',{ LibraryId:el('#sbPreviewLibrary').value, VideoPath:el('#sbVideo').value, OnlyFolder:el('#sbOnlyFolder').value.trim(), Rules:rules() }); rows(result.Entries); }
       catch (error) { status('Preview failed: ' + String(error)); }
     });
     el('#sbReport').addEventListener('click', async function () {

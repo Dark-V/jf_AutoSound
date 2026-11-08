@@ -226,6 +226,11 @@ def check_linked_episodes(user_id, settings):
     dub.parent.mkdir(parents=True)
     shutil.copy2(track, dub)
     sources[regular]['Audio'] = dub
+    excluded = shows / 'Bridge Series Other'
+    excluded_dub = excluded / 'Rus Sound' / 'Studio' / 'Bridge Series Other S01E01.mka'
+    excluded_dub.parent.mkdir(parents=True)
+    shutil.copy2(video, excluded / 'Bridge Series Other S01E01.mkv')
+    shutil.copy2(track, excluded_dub)
 
     query = urllib.parse.urlencode({'name': 'Bridge Shows', 'collectionType': 'tvshows', 'paths': str(shows)})
     api('POST', '/Library/VirtualFolders?' + query, {'LibraryOptions': {
@@ -241,13 +246,16 @@ def check_linked_episodes(user_id, settings):
     query = urllib.parse.urlencode({'ids': ','.join(items[str(p)] for p in sources)})
     api('POST', '/Videos/MergeVersions?' + query)
     settings['EnabledLibraryIds'].append(tv_library['ItemId'])
+    settings['OnlyFolder'] = str(series)
+    original_parent_levels = settings['Rules']['ScopeParentLevels']
+    settings['Rules']['ScopeParentLevels'] = 1
     api('POST', plugin_config_route, settings)
     api('POST', '/System/Shutdown')
     server.wait(timeout=30)
     start_server()
     run_task('RefreshLibrary')
 
-    visible = [i for i in api('GET', items_url)['Items'] if i.get('Path') in items]
+    visible = [i for i in api('GET', items_url)['Items'] if i.get('Path') in {str(p) for p in sources}]
     assert len(visible) == 1, visible
     playback = api('GET', f"/Items/{visible[0]['Id']}/PlaybackInfo?userId={user_id}")
     media_sources = {Path(item['Path']): item for item in playback['MediaSources']}
@@ -257,8 +265,69 @@ def check_linked_episodes(user_id, settings):
         assert len(external) == len(expected), (episode, external)
         for stream in external:
             assert stream.get('Language') == 'rus' and os.path.samefile(stream['Path'], expected[stream['Type']]), stream
-    print('PASS linked episode versions each expose their own tracks after one ordinary scan', flush=True)
-    return {'versionCount': len(media_sources), 'scanRequestsAfterMerge': 1, 'pathsAndStreamsVerified': True}
+    assert not list(excluded.glob('*.mka')), 'Folder limit allowed a write to a sibling series'
+    settings['OnlyFolder'] = ''
+    settings['Rules']['ScopeParentLevels'] = original_parent_levels
+    api('POST', plugin_config_route, settings)
+    print('PASS linked episodes expose their own tracks; the folder limit excludes the sibling series', flush=True)
+    return {'versionCount': len(media_sources), 'scanRequestsAfterMerge': 1, 'pathsAndStreamsVerified': True, 'folderLimitVerified': True}
+
+
+def check_nia_liston(user_id):
+    # Same relative paths as the two episodes of the user's release. Seed the
+    # second with the working manual layout and leave the first for the plugin.
+    series = root / 'shows' / 'Kyouran Reijou Nia Liston [WEB-DL 1080p] [SubsPlus+]'
+    dub_dir = series / 'RUS Sound [StudioBand]'
+    signs_dir = dub_dir / 'надписи'
+    subs_dir = series / 'RUS Subs [Amediateka]'
+    signs_dir.mkdir(parents=True)
+    subs_dir.mkdir()
+    fixture_sub = root / 'nia-subtitle.ass'
+    ff('-i', sub, fixture_sub)
+    os.utime(fixture_sub, (time.time()-120, time.time()-120))
+    expected = {}
+    for number, crc in ((1, '4EFEF51F'), (2, '333EA23D')):
+        stem = f'[SubsPlus+] Nia Liston - The Merciless Maiden - S01E{number:02d} (ADN WEB-DL 1080p AVC AAC) [{crc}]'
+        episode = series / (stem + '.mkv')
+        shutil.copy2(video, episode)
+        expected[episode] = {}
+        for folder, title, extension, fixture, kind in (
+            (dub_dir, 'StudioBand', 'mka', track, 'Audio'),
+            (subs_dir, 'Amediateka', 'ass', fixture_sub, 'Subtitle'),
+            (signs_dir, 'signs', 'ass', fixture_sub, 'Subtitle'),
+        ):
+            source = folder / f'{stem}.{title}.{extension}'
+            destination = series / f'{stem}.ru.{title}.{extension}'
+            shutil.copy2(fixture, source)
+            if number == 2:
+                os.link(source, destination)
+            expected[episode][destination] = (source, kind, title)
+        shutil.copy2(track, dub_dir / f'{stem}.Different Cut.mka')
+
+    def verify_tracks():
+        query = urllib.parse.urlencode({'userId': user_id, 'Recursive': 'true', 'IncludeItemTypes': 'Episode', 'Fields': 'Path'})
+        items = {i['Path']: i['Id'] for i in api('GET', '/Items?' + query)['Items'] if i.get('Path')}
+        for episode, links in expected.items():
+            assert str(episode) in items, items
+            actual = {p for p in series.iterdir() if p.name.startswith(episode.stem + '.') and p.suffix in ('.ass', '.mka')}
+            assert actual == set(links), (episode, actual)
+            playback = api('GET', f"/Items/{items[str(episode)]}/PlaybackInfo?userId={user_id}")
+            [media_source] = playback['MediaSources']
+            external = [stream for stream in media_source['MediaStreams'] if stream.get('IsExternal')]
+            assert len(external) == 3, (episode, external)
+            for stream in external:
+                destination = Path(stream['Path'])
+                source, kind, title = links[destination]
+                assert os.path.samefile(source, destination), (source, destination)
+                assert (stream['Type'], stream.get('Language'), stream.get('Title')) == (kind, 'rus', title), stream
+                assert not stream.get('IsForced'), stream
+
+    run_task('RefreshLibrary')
+    verify_tracks()
+    run_task('RefreshLibrary')
+    verify_tracks()
+    print('PASS Nia Liston: automatic and manual layouts expose the same three tracks, without duplicates', flush=True)
+    return {'autoLinkedTracks': 3, 'preexistingTracks': 3, 'idempotent': True}
 
 
 try:
@@ -310,7 +379,7 @@ try:
         assert start_server()['Version'] == info['Version']
         assert_active(expected_version)
         if previous_settings is not None:
-            assert api('GET', plugin_config_route) == previous_settings, 'Plugin configuration changed during the upgrade'
+            assert api('GET', plugin_config_route) == {'OnlyFolder': '', **previous_settings}, 'Plugin configuration changed during the upgrade'
         catalog_proof = {
             'url': catalog_url, 'version': expected_version, 'targetAbi': selected['targetAbi'],
             'sourceUrl': selected['sourceUrl'], 'checksum': selected['checksum'], 'restartedAndActive': True,
@@ -388,6 +457,7 @@ try:
     proof['D']={'anonymousDiagnosticsDenied':True,'previewReadOnly':True}
     proof['E']={'reservedStudioNotAFlag':True,'signsNotForced':True,'explicitSubtitleFlags':True,'multiStreamMetadataPreserved':True}
     proof['linkedEpisodes'] = check_linked_episodes(user, config_body)
+    proof['niaListon'] = check_nia_liston(user)
     for path,digest in originals.items(): assert hashlib.sha256(Path(path).read_bytes()).hexdigest()==digest
     (root/'proof.json').write_text(json.dumps(proof,ensure_ascii=False,indent=2),encoding='utf-8')
     print('PASS A: first scan registers hardlinked audio + subtitle in MediaStreams')
