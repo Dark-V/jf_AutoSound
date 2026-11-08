@@ -1,40 +1,77 @@
-"""Deterministic local installation ZIP; never uploads or publishes a release."""
-import argparse, datetime, hashlib, json
+"""Build a Jellyfin installation ZIP from compiled plugin assemblies."""
+import argparse
+import hashlib
+import json
 from pathlib import Path
+import re
+import xml.etree.ElementTree as ET
 import zipfile
 
-ROOT=Path(__file__).resolve().parents[1]
-VERSION='0.1.0.0'
-GUID='89654c7e-bf44-4e9f-8adf-2219fe61fa36'
-p=argparse.ArgumentParser()
-p.add_argument('--build-dir',type=Path,default=ROOT/'src/Jellyfin.Plugin.SidecarBridge/bin/Release/net10.0')
-p.add_argument('--output',type=Path,default=ROOT/'artifacts')
-p.add_argument('--source-url',help='An actual publicly available ZIP URL; omit until publication is separately authorized')
-a=p.parse_args()
-a.output.mkdir(parents=True,exist_ok=True)
-meta={'category':'General','guid':GUID,'name':'Sidecar Bridge','overview':'Nested audio and subtitles, connected with hardlinks.',
-    'description':'Connect external audio and subtitles during ordinary Jellyfin library scans.',
-    'owner':'Dark-V','targetAbi':'12.4.0.0','version':VERSION,'timestamp':'2026-11-04T00:00:00Z',
-    'status':'Active','autoUpdate':False,'imagePath':'icon.png','assemblies':['SidecarBridge.Core.dll','Jellyfin.Plugin.SidecarBridge.dll']}
-payload={name:(a.build_dir/name).read_bytes() for name in ['Jellyfin.Plugin.SidecarBridge.dll','SidecarBridge.Core.dll']}
-payload['meta.json']=(json.dumps(meta,ensure_ascii=False,indent=2)+'\n').encode()
-payload['icon.png']=(ROOT/'docs/assets/icon.png').read_bytes()
-payload['LICENSE']=(ROOT/'LICENSE').read_bytes()
-payload['INSTALL.txt']=b'Jellyfin 12.4 only. Stop Jellyfin. Extract into plugins/SidecarBridge_0.1.0.0/. Start and enable libraries in plugin settings. See repository docs/installation.md.\n'
-target=a.output/f'SidecarBridge_{VERSION}.zip'
-with zipfile.ZipFile(target,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as archive:
-    for name,data in sorted(payload.items()):
-        item=zipfile.ZipInfo(name,date_time=(2026,11,4,0,0,0)); item.compress_type=zipfile.ZIP_DEFLATED; item.external_attr=0o100644<<16
-        archive.writestr(item,data,compress_type=zipfile.ZIP_DEFLATED,compresslevel=9)
-md5=hashlib.md5(target.read_bytes(),usedforsecurity=False).hexdigest()
-sha=hashlib.sha256(target.read_bytes()).hexdigest()
-(a.output/(target.name+'.sha256')).write_text(sha+'  '+target.name+'\n',encoding='utf-8')
-manifest=json.loads((ROOT/'manifest.json').read_text(encoding='utf-8'))
-if a.source_url:
-    if not a.source_url.startswith('https://'):raise SystemExit('--source-url must be an actual HTTPS download URL')
-    manifest[0]['versions']=[{'version':VERSION,'changelog':'Initial Sidecar Bridge build.','targetAbi':'12.4.0.0',
-        'sourceUrl':a.source_url,'checksum':md5,'timestamp':meta['timestamp']}]
-(a.output/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-print(target)
-print('SHA256 '+sha)
-print('Installable catalog version generated.' if a.source_url else 'No public version advertised: release publication has not been authorized.')
+ROOT = Path(__file__).resolve().parents[1]
+PROJECT = ROOT / "src/Jellyfin.Plugin.SidecarBridge"
+ASSEMBLIES = ["SidecarBridge.Core.dll", "Jellyfin.Plugin.SidecarBridge.dll"]
+
+
+def metadata():
+    project = ET.parse(PROJECT / "Jellyfin.Plugin.SidecarBridge.csproj")
+    version = project.findtext("./PropertyGroup/Version")
+    if not version or not re.fullmatch(r"[0-9]+(?:\.[0-9]+){3}", version):
+        raise ValueError("Use a four-part numeric plugin version in the project")
+    controller = project.find("./ItemGroup/PackageReference[@Include='Jellyfin.Controller']")
+    dependency = controller.attrib["Version"]
+    if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){2,3}", dependency):
+        raise ValueError("Pin Jellyfin.Controller to the tested stable version")
+    abi = ".".join((dependency.split(".") + ["0"])[:4])
+
+    sections = re.split(r"(?m)^## (\S+)\s*$", (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))
+    notes = dict(zip(sections[1::2], sections[2::2]))[version].strip()
+    if not notes:
+        raise ValueError(f"Missing release notes for {version}")
+    [plugin] = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
+    fields = ("guid", "name", "owner", "category", "overview", "description")
+    return {
+        **{key: plugin[key] for key in fields},
+        "version": version,
+        "targetAbi": abi,
+        "changelog": notes,
+        "status": "Active",
+        "autoUpdate": True,
+        "imagePath": "icon.png",
+        "assemblies": ASSEMBLIES,
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--build-dir", type=Path, default=PROJECT / "bin/Release/net10.0")
+    parser.add_argument("--output", type=Path, default=ROOT / "artifacts")
+    parser.add_argument("--github-output", type=Path)
+    args = parser.parse_args()
+    meta = metadata()
+    payload = {name: (args.build_dir / name).read_bytes() for name in ASSEMBLIES}
+    payload["meta.json"] = (json.dumps(meta, ensure_ascii=False, indent=2) + "\n").encode()
+    payload["icon.png"] = (ROOT / "docs/assets/icon.png").read_bytes()
+    payload["LICENSE"] = (ROOT / "LICENSE").read_bytes()
+    payload["INSTALL.txt"] = (
+        "Add the repository URL from the project README in Jellyfin's Plugins settings.\n"
+        "Install Sidecar Bridge from the catalog, restart Jellyfin and enable your libraries.\n"
+    ).encode()
+
+    args.output.mkdir(parents=True, exist_ok=True)
+    target = args.output / f"SidecarBridge_{meta['version']}.zip"
+    with zipfile.ZipFile(target, "w") as archive:
+        for name, data in sorted(payload.items()):
+            item = zipfile.ZipInfo(name)
+            item.external_attr = 0o100644 << 16
+            archive.writestr(item, data, compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+
+    digest = hashlib.sha256(target.read_bytes()).hexdigest()
+    target.with_suffix(".zip.sha256").write_text(f"{digest}  {target.name}\n", encoding="utf-8")
+    if args.github_output:
+        with args.github_output.open("a", encoding="utf-8") as output:
+            print(f"zip={target.relative_to(ROOT).as_posix()}", file=output)
+    print(f"{target}\nSHA256 {digest}")
+
+
+if __name__ == "__main__":
+    main()

@@ -2,7 +2,9 @@
 Never points to an existing server; all server state and media live below --work.
 """
 import argparse
+from functools import partial
 import hashlib
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
@@ -10,21 +12,33 @@ import secrets
 import shutil
 import socket
 import subprocess
+from threading import Thread
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 import zipfile
 
 p = argparse.ArgumentParser()
 p.add_argument('--server', required=True, type=Path, help='Published jellyfin.dll')
 package=p.add_mutually_exclusive_group(required=True)
 package.add_argument('--plugin', type=Path, help='Directory containing built plugin DLLs')
-package.add_argument('--plugin-zip', type=Path, help='Actual installation ZIP, including its manifest')
+package.add_argument('--plugin-zip', type=Path, help='Install the tested ZIP through a loopback Jellyfin catalog')
+package.add_argument('--catalog-url', help='Install from a published Jellyfin catalog')
+p.add_argument('--version', help='Expected plugin version for a published catalog')
+p.add_argument('--upgrade-from-zip', type=Path, help='Seed an older plugin before installing the catalog version')
+p.add_argument('--scheduled-update', action='store_true', help='Enable auto-update on the test seed and run Jellyfin’s update task')
 p.add_argument('--dotnet', default='dotnet')
 p.add_argument('--ffmpeg', default='ffmpeg')
 p.add_argument('--work', required=True, type=Path, help='A new, empty disposable directory')
 a = p.parse_args()
+if a.catalog_url and not a.version:
+    p.error('--catalog-url requires --version')
+if a.upgrade_from_zip and a.plugin:
+    p.error('--upgrade-from-zip requires a catalog installation')
+if a.scheduled_update and not a.upgrade_from_zip:
+    p.error('--scheduled-update requires --upgrade-from-zip')
 root = a.work.resolve()
 root.mkdir(parents=True, exist_ok=True)
 if any(root.iterdir()):
@@ -61,19 +75,66 @@ for file in fixture_files:
 originals = {str(f):hashlib.sha256(f.read_bytes()).hexdigest() for f in fixture_files}
 data = root / 'data'
 config = root / 'config'
-plugin = data / 'plugins' / 'SidecarBridge_0.1.0.0'
-plugin.mkdir(parents=True)
 config.mkdir()
+guid = '89654c7e-bf44-4e9f-8adf-2219fe61fa36'
+assemblies = {'Jellyfin.Plugin.SidecarBridge.dll', 'SidecarBridge.Core.dll'}
+plugin_config_route = f'/Plugins/{guid}/Configuration'
+
+
+def zip_meta(archive):
+    allowed = assemblies | {'meta.json', 'icon.png', 'LICENSE', 'INSTALL.txt'}
+    assert sorted(archive.namelist()) == sorted(allowed), 'Unexpected installation ZIP entries'
+    meta = json.loads(archive.read('meta.json'))
+    assert meta['guid'] == guid and set(meta['assemblies']) == assemblies, meta
+    return meta
+
+
+old_version = None
+if a.upgrade_from_zip:
+    with zipfile.ZipFile(a.upgrade_from_zip) as archive:
+        seed = zip_meta(archive)
+        old_version = seed['version']
+        plugin = data / 'plugins' / f'SidecarBridge_{old_version}'
+        plugin.mkdir(parents=True)
+        for name in archive.namelist():
+            (plugin / name).write_bytes(archive.read(name))
+        if a.scheduled_update:
+            seed['autoUpdate'] = True
+            (plugin / 'meta.json').write_text(json.dumps(seed), encoding='utf-8')
+
+catalog_url = a.catalog_url
+catalog_server = None
+expected_version = a.version
+expected_auto_update = True
 if a.plugin_zip:
     with zipfile.ZipFile(a.plugin_zip) as archive:
-        allowed={'Jellyfin.Plugin.SidecarBridge.dll','SidecarBridge.Core.dll','meta.json','icon.png','LICENSE','INSTALL.txt'}
-        assert set(archive.namelist())==allowed,'Unexpected installation ZIP entries'
-        for name in archive.namelist(): (plugin/name).write_bytes(archive.read(name))
-else:
-    for name in ('Jellyfin.Plugin.SidecarBridge.dll','SidecarBridge.Core.dll'):
+        meta = zip_meta(archive)
+    expected_version = meta['version']
+    expected_auto_update = meta['autoUpdate']
+    staging = root / 'catalog'
+    staging.mkdir()
+    shutil.copy2(a.plugin_zip, staging / a.plugin_zip.name)
+    catalog_server = ThreadingHTTPServer(('127.0.0.1', 0), partial(SimpleHTTPRequestHandler, directory=str(staging)))
+    catalog_base = f'http://127.0.0.1:{catalog_server.server_port}'
+    catalog_url = catalog_base + '/manifest.json'
+    entry = {key: meta[key] for key in ('guid', 'name', 'description', 'overview', 'category', 'owner')}
+    entry['versions'] = [{
+        **{key: meta[key] for key in ('version', 'targetAbi')},
+        'changelog': meta.get('changelog', ''),
+        'sourceUrl': f'{catalog_base}/{a.plugin_zip.name}',
+        'checksum': hashlib.md5(a.plugin_zip.read_bytes(), usedforsecurity=False).hexdigest(),
+    }]
+    (staging / 'manifest.json').write_text(json.dumps([entry]), encoding='utf-8')
+    Thread(target=catalog_server.serve_forever, daemon=True).start()
+elif a.plugin:
+    project = Path(__file__).resolve().parents[2] / 'src/Jellyfin.Plugin.SidecarBridge/Jellyfin.Plugin.SidecarBridge.csproj'
+    expected_version = ET.parse(project).findtext('./PropertyGroup/Version')
+    plugin = data / 'plugins' / f'SidecarBridge_{expected_version}'
+    plugin.mkdir(parents=True)
+    for name in assemblies:
         shutil.copy2(a.plugin.resolve()/name, plugin/name)
-    (plugin/'meta.json').write_text(json.dumps({'name':'Sidecar Bridge','guid':'89654c7e-bf44-4e9f-8adf-2219fe61fa36',
-        'version':'0.1.0.0','targetAbi':'12.4.0.0','status':'Active','autoUpdate':False}),encoding='utf-8')
+    (plugin/'meta.json').write_text(json.dumps({'name':'Sidecar Bridge','guid':guid,
+        'version':expected_version,'targetAbi':'12.4.0.0','status':'Active'}),encoding='utf-8')
 with socket.socket() as sock:
     sock.bind(('127.0.0.1',0))
     port = sock.getsockname()[1]
@@ -97,19 +158,58 @@ def api(method,path,body=None,authenticated=True):
         raise AssertionError(f'{method} {path}: {ex.code} {ex.read().decode()[:500]}') from ex
 log = (root/'server.log').open('w',encoding='utf-8')
 env=dict(os.environ, DOTNET_CLI_TELEMETRY_OPTOUT='1')
-server=subprocess.Popen([a.dotnet,str(a.server.resolve()),'--datadir',str(data),'--configdir',str(config),
-    '--cachedir',str(root/'cache'),'--logdir',str(root/'logs'),'--nowebclient','--nonetchange',
-    '--ffmpeg',str(Path(shutil.which(a.ffmpeg) or a.ffmpeg).resolve())],stdout=log,stderr=subprocess.STDOUT,env=env)
-try:
+server = None
+
+
+def start_server():
+    global server
+    server = subprocess.Popen([a.dotnet,str(a.server.resolve()),'--datadir',str(data),'--configdir',str(config),
+        '--cachedir',str(root/'cache'),'--logdir',str(root/'logs'),'--nowebclient','--nonetchange',
+        '--ffmpeg',str(Path(shutil.which(a.ffmpeg) or a.ffmpeg).resolve())],stdout=log,stderr=subprocess.STDOUT,env=env)
     for _ in range(120):
         if server.poll() is not None: raise AssertionError('Jellyfin exited; inspect server.log')
         try:
-            info=api('GET','/System/Info/Public',authenticated=False)
-            if info.get('Version'): break
-            time.sleep(0.5)
-        except Exception: time.sleep(0.5)
-    else: raise AssertionError('Jellyfin startup timeout; inspect server.log')
-    assert info['Version'].startswith('12.4.'),info
+            info = api('GET', '/System/Info/Public', authenticated=False)
+            if info.get('Version'):
+                return info
+        except (AssertionError, urllib.error.URLError, TimeoutError):
+            pass
+        time.sleep(0.5)
+    raise AssertionError('Jellyfin startup timeout; inspect server.log')
+
+
+def assert_active(version):
+    plugins = [item for item in api('GET', '/Plugins') if item['Id'].replace('-', '') == guid.replace('-', '')]
+    active = [item for item in plugins if item['Status'] == 'Active']
+    assert len(active) == 1 and active[0]['Version'] == version, plugins
+    api('GET', plugin_config_route)
+
+
+def run_task(key):
+    selected = next(task for task in api('GET', '/ScheduledTasks') if task['Key'] == key)
+    task_id = selected['Id']
+    route = f'/ScheduledTasks/{task_id}'
+    for _ in range(120):
+        before = api('GET', route)
+        if before['State'] == 'Idle':
+            break
+        time.sleep(0.25)
+    else:
+        raise AssertionError(f'{key} was already running')
+    api('POST', f'/ScheduledTasks/Running/{task_id}')
+    for _ in range(240):
+        task = api('GET', route)
+        if task['State'] == 'Idle' and task.get('LastExecutionResult') != before.get('LastExecutionResult'):
+            assert task['LastExecutionResult']['Status'] == 'Completed', task
+            return
+        time.sleep(0.25)
+    raise AssertionError(f'{key} timeout')
+
+
+try:
+    info = start_server()
+    server_abi = '.'.join((info['Version'].split('.') + ['0'])[:4])
+    assert server_abi == '12.4.0.0', info
     api('GET','/Startup/User')
     password=secrets.token_urlsafe(24)
     api('POST','/Startup/User',{'Name':'bridge-test','Password':password})
@@ -123,22 +223,56 @@ try:
          'TypeOptions':[{'Type':'Movie','MetadataFetchers':[],'ImageFetchers':[]}]}})
     folders=api('GET','/Library/VirtualFolders')
     library=next(f for f in folders if f['Name']=='Bridge Test')
-    config_body=api('GET','/Plugins/89654c7ebf444e9f8adf2219fe61fa36/Configuration')
-    config_body['EnabledLibraryIds']=[library['ItemId']]
-    api('POST','/Plugins/89654c7ebf444e9f8adf2219fe61fa36/Configuration',config_body)
-    tasks=api('GET','/ScheduledTasks')
-    scan=next(t for t in tasks if t['Key']=='RefreshLibrary')
+    catalog_proof = None
+    previous_settings = None
+    if old_version:
+        assert_active(old_version)
+        previous_settings = api('GET', plugin_config_route)
+        previous_settings['EnabledLibraryIds'] = [library['ItemId']]
+        previous_settings['Rules']['MinimumAgeSeconds'] = 17
+        api('POST', plugin_config_route, previous_settings)
+
+    if catalog_url:
+        api('POST', '/Repositories', [{'Name': 'Sidecar Bridge test', 'Url': catalog_url, 'Enabled': True}])
+        packages = api('GET', '/Packages')
+        package = next(item for item in packages if item['guid'].replace('-', '') == guid.replace('-', ''))
+        selected = package['versions'][0]
+        assert package['name'] == 'Sidecar Bridge' and selected['version'] == expected_version, package
+        assert selected['targetAbi'] == server_abi, selected
+        if a.scheduled_update:
+            run_task('PluginUpdates')
+        else:
+            query = urllib.parse.urlencode({'assemblyGuid': guid, 'repositoryUrl': catalog_url})
+            api('POST', '/Packages/Installed/Sidecar%20Bridge?' + query)
+        installed = data / 'plugins' / f'Sidecar Bridge_{expected_version}'
+        installed_meta = json.loads((installed / 'meta.json').read_text(encoding='utf-8'))
+        assert installed_meta['version'] == expected_version, installed_meta
+        assert installed_meta['autoUpdate'] is expected_auto_update, installed_meta
+        assert all((installed / name).is_file() for name in assemblies)
+        assert api('GET', '/System/Info')['HasPendingRestart']
+        api('POST', '/System/Shutdown')
+        server.wait(timeout=30)
+        assert start_server()['Version'] == info['Version']
+        assert_active(expected_version)
+        if previous_settings is not None:
+            assert api('GET', plugin_config_route) == previous_settings, 'Plugin configuration changed during the upgrade'
+        catalog_proof = {
+            'url': catalog_url, 'version': expected_version, 'targetAbi': selected['targetAbi'],
+            'sourceUrl': selected['sourceUrl'], 'checksum': selected['checksum'], 'restartedAndActive': True,
+            'upgradedFrom': old_version, 'settingsPreserved': previous_settings is not None,
+            'scheduledUpdate': a.scheduled_update,
+        }
+        print(f'PASS Jellyfin catalog installation and restart: {expected_version}', flush=True)
+        if old_version:
+            print(f'PASS upgrade from {old_version}: existing settings preserved', flush=True)
+
+    config_body = api('GET', plugin_config_route)
+    config_body['EnabledLibraryIds'] = [library['ItemId']]
+    api('POST', plugin_config_route, config_body)
+
     def run_scan():
         # One request to the ordinary library scan; no per-item refresh calls.
-        before=api('GET','/ScheduledTasks/'+scan['Id']).get('LastExecutionResult')
-        api('POST','/ScheduledTasks/Running/'+scan['Id'])
-        for _ in range(240):
-            task=api('GET','/ScheduledTasks/'+scan['Id'])
-            if task['State']=='Idle' and task.get('LastExecutionResult') != before:
-                assert task['LastExecutionResult']['Status']=='Completed',task
-                return
-            time.sleep(0.25)
-        raise AssertionError('Scan timeout')
+        run_task('RefreshLibrary')
     def streams():
         items=api('GET','/Items?'+urllib.parse.urlencode({'userId':user,'Recursive':'true','IncludeItemTypes':'Movie','Fields':'MediaStreams,Path'}))['Items']
         item=next(i for i in items if i.get('Path')==str(video))
@@ -162,7 +296,7 @@ try:
     links=[Path(s['Path']) for s in external]
     assert any(os.path.samefile(f,track) for f in links)
     assert any(os.path.samefile(f,sub) for f in links)
-    proof={'jellyfin':info['Version'],'platform':os.name,'A':{'scanRequests':1,'streams':external}}
+    proof={'jellyfin':info['Version'],'platform':os.name,'catalog':catalog_proof,'A':{'scanRequests':1,'streams':external}}
     later=media/'Audio'/'Second Studio'
     later.mkdir(parents=True)
     later_track=later/(stem+'.eng.mka')
@@ -205,7 +339,11 @@ try:
     print('PASS original file hashes and hardlink identities')
     print('PASS source replacement, idempotent registry, preview and anonymous access denial')
 finally:
-    server.terminate()
-    try: server.wait(timeout=15)
-    except subprocess.TimeoutExpired: server.kill(); server.wait()
+    if server is not None and server.poll() is None:
+        server.terminate()
+        try: server.wait(timeout=15)
+        except subprocess.TimeoutExpired: server.kill(); server.wait()
+    if catalog_server is not None:
+        catalog_server.shutdown()
+        catalog_server.server_close()
     log.close()

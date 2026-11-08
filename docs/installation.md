@@ -1,53 +1,32 @@
-# Installation: Linux, Docker and Windows
+# Installation and updates
 
-Target **Jellyfin 12.4.0**, ABI `12.4.0.0`, .NET 10. Other versions need their own source review and integration run. Build with SDK `10.0.403` (or a later patch in that feature band).
+Sidecar Bridge targets Jellyfin 12.4.0 and .NET 10. Its catalog ABI is `12.4.0.0`. Jellyfin hides entries whose ABI is higher than its server version. The ABI field sets a minimum. Jellyfin 12.4.0 is the version verified by this project. [Jellyfin version selection](https://github.com/jellyfin/jellyfin/blob/v12.4/Emby.Server.Implementations/Updates/InstallationManager.cs#L104)
 
-## Obtain the ZIP
+## Install from the catalog
 
-Download `SidecarBridge_0.1.0.0.zip` from a successful GitHub Actions artifact, or build from source using the README commands. Verify the adjacent SHA-256 file. A public GitHub Release has not been published. The root `manifest.json` is a valid empty catalog; it intentionally advertises no nonexistent download URL.
+1. Open **Dashboard → Plugins → Repositories**.
+2. Add a repository named **Sidecar Bridge** with this URL.
 
-Packaging a future authorized publication:
+   ```text
+   https://raw.githubusercontent.com/Dark-V/jf_AutoSound/refs/heads/main/manifest.json
+   ```
 
-```sh
-python tools/package.py --source-url https://YOUR-ACTUAL-HOST/ACTUAL-PACKAGE.zip
-```
+3. Open **Catalog**, select **Sidecar Bridge** and install the latest compatible version.
+4. Restart Jellyfin and open **Dashboard → Plugins → Sidecar Bridge**. Select libraries and save.
 
-That command only writes local files. Use it with the actual ZIP URL after publication is separately authorized. The generated catalog uses Jellyfin's MD5 package checksum field; SHA-256 is also supplied separately. This example URL is a placeholder, not a published download.
+The installer downloads the ZIP and verifies the catalog's MD5 before extracting it. Releases include the ZIP and a SHA-256 checksum. [GitHub Releases](https://github.com/Dark-V/jf_AutoSound/releases)
 
-## Linux
+## Update
 
-1. Stop the Jellyfin service.
-2. Find its configured plugins directory. A standard package commonly uses `/var/lib/jellyfin/plugins`; custom data paths change this location.
-3. Create `SidecarBridge_0.1.0.0` beneath that directory. Extract the ZIP there so the two DLLs, `meta.json` and `icon.png` are directly inside it.
-4. Ensure the Jellyfin service account can read plugin files and sidecar sources, create directory entries beside videos, and write its own plugin data directory. Use the storage owner's normal group/ACL policy.
-5. Start Jellyfin and enable libraries in the plugin settings.
+Keep the repository enabled. Jellyfin checks for a newer compatible release in the **Update Plugins** scheduled task. Run that task from the dashboard to check immediately. Restart Jellyfin after it downloads an update.
 
-The plugin never asks for root, alters permissions, invokes a shell or runs FFmpeg. Jellyfin still uses its own normal FFmpeg/ffprobe installation for media analysis.
+If you installed the development build `0.1.0.0` by hand, select the current version in the catalog and install it once. Automatic updates were disabled in that build. Sidecar Bridge keeps its GUID and uses the same configuration file and ownership registry across versions.
 
-## Docker
+## Filesystem permissions
 
-Install the same plugin under the container's configured plugins directory (commonly `/config/plugins`). Keep it on persistent configuration storage.
+On Linux, Docker and Windows, the Jellyfin service account needs read access to the sources, permission to create directory entries next to the videos, and write access to its own data path. Source and destination must share a filesystem that supports hardlinks. On Windows this means the same volume.
 
-Sources and destinations must be hardlink-compatible **inside the container's mount namespace**. Prefer one common media bind mount, for example:
-
-```yaml
-volumes:
-  - /srv/jellyfin/config:/config
-  - /srv/media:/media
-```
-
-This is only a mount illustration, not a complete deployment stack. Video, audio and subtitles may occupy different subfolders under `/media`, but their underlying filesystem still needs to be the same. Separate bind mounts, datasets, mergerfs branches and Docker Desktop shared drives can reject a hardlink even when path names look adjacent. Read-only mounts cannot accept new links. The plugin reports the native error and does not copy data instead.
-
-Use paths **as Jellyfin sees them**, such as `/media/Film/Video/Film.mkv`, in the preview. No container sidecar is required. Deployment on a user's Docker server is not included in the test evidence.
-
-## Windows
-
-1. Stop Jellyfin.
-2. Locate the plugins folder under the server's actual data directory. A service and an interactive installation can use different data directories.
-3. Extract the package into a new `SidecarBridge_0.1.0.0` subfolder.
-4. Start Jellyfin, enable the desired libraries and preview one video.
-
-Local NTFS hardlinks do not require symlink privileges or Developer Mode. The Jellyfin account needs read access to sources and permission to create files in the video directory. Both paths must be on the same volume. Junctions and symlinks in the media path are refused.
+In Docker, place both sides of the link inside a common media bind mount. For example, mount `/srv/media` at `/media` and keep the video's sidecars below the same underlying filesystem. Use Jellyfin's container paths in Preview. Separate bind mounts, datasets and union filesystem branches can prevent hardlink creation.
 
 ## First use and removal
 

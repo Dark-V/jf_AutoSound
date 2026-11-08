@@ -1,0 +1,51 @@
+name: Publish Sidecar Bridge
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    concurrency:
+      group: sidecar-bridge-catalog-publication
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: catalog
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/download-artifact@v4
+        with:
+          name: tested-release-package
+          path: dist
+      - name: Publish the tested ZIP and update the catalog
+        shell: bash
+        run: |
+          git -C catalog merge-base --is-ancestor "$GITHUB_SHA" HEAD
+          package="dist/SidecarBridge_${GITHUB_REF_NAME#v}.zip"
+          python tools/publish.py publish --zip "$package" --manifest catalog/manifest.json
+          if ! git -C catalog diff --quiet -- manifest.json; then
+            git -C catalog add manifest.json
+            git -C catalog -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Publish Sidecar Bridge ${GITHUB_REF_NAME} in the Jellyfin catalog"
+            git -C catalog push origin HEAD:main
+          fi
+          python tools/publish.py verify --zip "$package" --manifest catalog/manifest.json

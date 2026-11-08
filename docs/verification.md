@@ -26,7 +26,7 @@ dotnet test tests/SidecarBridge.Tests -c Release --no-restore
 git clone --depth 1 --branch v12.4 https://github.com/jellyfin/jellyfin.git integration-work/jellyfin
 dotnet publish integration-work/jellyfin/Jellyfin.Server/Jellyfin.Server.csproj -c Release -o integration-work/server -p:EnableNETAnalyzers=false -p:RunAnalyzers=false
 python tools/package.py
-python tests/integration/one_scan.py --server integration-work/server/jellyfin.dll --plugin-zip artifacts/SidecarBridge_0.1.0.0.zip --work integration-work/proof
+python tests/integration/one_scan.py --server integration-work/server/jellyfin.dll --plugin-zip artifacts/SidecarBridge_1.0.0.0.zip --work integration-work/proof
 ```
 
 FFmpeg must be installed **for fixture generation and the disposable Jellyfin server**. It is not invoked by plugin code. `--work` must be a new empty directory; the test refuses to erase existing directories. The test starts only its own loopback server, generates a random temporary admin password, and stops that server on exit.

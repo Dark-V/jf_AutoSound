@@ -1,8 +1,10 @@
 name: Build and one-scan integration
 on:
   push:
+    branches: ['**']
   pull_request:
   workflow_dispatch:
+  workflow_call:
 permissions:
   contents: read
 jobs:
@@ -41,8 +43,10 @@ jobs:
         run: dotnet test tests/SidecarBridge.Tests -c Release --no-restore --logger "trx;LogFileName=core.trx"
       - name: Build plugin
         run: dotnet build src/Jellyfin.Plugin.SidecarBridge -c Release --no-restore
-      - name: Create local installation artifact
-        run: python tools/package.py
+      - name: Package the compiled plugin
+        id: package
+        shell: bash
+        run: python tools/package.py --github-output "$GITHUB_OUTPUT"
       - name: Fetch pinned Jellyfin source
         run: git clone --depth 1 --branch v12.4 https://github.com/jellyfin/jellyfin.git integration-work/jellyfin
       - name: Verify server source commit
@@ -54,7 +58,13 @@ jobs:
       - name: Build actual Jellyfin server
         run: dotnet publish integration-work/jellyfin/Jellyfin.Server/Jellyfin.Server.csproj -c Release -o integration-work/server -p:EnableNETAnalyzers=false -p:RunAnalyzers=false
       - name: Single-scan MediaStreams integration
-        run: python tests/integration/one_scan.py --server integration-work/server/jellyfin.dll --plugin-zip artifacts/SidecarBridge_0.1.0.0.zip --work integration-work/proof
+        run: python tests/integration/one_scan.py --server integration-work/server/jellyfin.dll --plugin-zip "${{ steps.package.outputs.zip }}" --work integration-work/proof
+      - uses: actions/upload-artifact@v4
+        if: success() && runner.os == 'Linux' && matrix.os == 'ubuntu-24.04'
+        with:
+          name: tested-release-package
+          path: artifacts/*
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:

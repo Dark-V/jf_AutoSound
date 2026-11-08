@@ -49,14 +49,21 @@ The plugin runs inside Jellyfin. It does not need a daemon, watcher, container s
 
 ## Start here
 
-Target: **Jellyfin 12.4.0 / .NET 10**. Use the ZIP from a successful CI artifact, or build it locally. A public GitHub Release has deliberately not been published; `manifest.json` has no published versions yet.
+Supported server version **Jellyfin 12.4.0** (ABI `12.4.0.0`, .NET 10).
 
-1. Stop Jellyfin and extract the installation ZIP into a new `SidecarBridge_0.1.0.0` folder under its plugins directory.
-2. Start Jellyfin. Open Dashboard → Plugins → Sidecar Bridge.
-3. Enable the required libraries, audio and/or subtitles. Save. All libraries start disabled.
-4. Try **Preview** with a full video path as seen by the server, then run a normal library scan.
+1. Open **Dashboard → Plugins → Repositories** and add this repository URL.
 
-The default 30-second file-age guard defers very recent files until the next ordinary scan. Files must be readable and destination directories writable, on the same filesystem. See [installation](docs/installation.md) for Linux, Docker and Windows.
+   ```text
+   https://raw.githubusercontent.com/Dark-V/jf_AutoSound/refs/heads/main/manifest.json
+   ```
+
+2. Open **Catalog**, choose **Sidecar Bridge**, and install the latest compatible version.
+3. Restart Jellyfin. Open **Dashboard → Plugins → Sidecar Bridge**, enable the libraries you want, and save.
+4. Try **Preview** with a video path as seen by the server, then run a normal library scan.
+
+Jellyfin's **Update Plugins** task downloads later compatible releases. Restart to activate a downloaded update. Install once from the catalog to migrate a manually installed `0.1.0.0` build. Configuration and link ownership data are retained. [Installation and upgrades](docs/installation.md)
+
+The default 30-second file-age guard defers very recent files until the next ordinary scan. Files must be readable and destination directories writable, on the same filesystem.
 
 ## Build and test
 
@@ -70,7 +77,9 @@ dotnet test tests/SidecarBridge.Tests -c Release --no-restore
 python tools/package.py
 ```
 
-The ZIP appears in `artifacts/SidecarBridge_0.1.0.0.zip`. Plugin runtime is entirely C#; Python and FFmpeg are development/test tools only. [Real-server tests](tests/integration/README.md) generate their own tiny media and inspect Jellyfin `MediaStreams` after a single scan.
+GitHub Actions builds and publishes the [release ZIP](https://github.com/Dark-V/jf_AutoSound/releases) after the Windows and Linux checks pass. It verifies the public ZIP, computes its MD5 and adds the version to the catalog. [Release process](CONTRIBUTING.md#releases)
+
+Local builds put the ZIP in `artifacts/`. The real-server tests use Python and FFmpeg to install the ZIP through Jellyfin and verify `MediaStreams` after one scan. [Integration tests](tests/integration/README.md)
 
 ## Compatibility and limits
 

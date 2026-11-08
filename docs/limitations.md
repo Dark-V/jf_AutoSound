@@ -11,4 +11,4 @@
 - **No live playback claim:** the automated integration test checks persisted `MediaStreams`, flag/language metadata and native file identities. It does not click a real playback client or test a user's home storage/server.
 - **UI:** administrator API/preview/report are exercised by real-server tests. Visual interaction with the installed Jellyfin web settings page has not been tested in a browser.
 
-These limits are explicit gaps relative to an absolute production-safety claim. The provided build is a tested `0.1.0.0` development version, not a promise that every storage backend and concurrent writer is supported.
+Test results apply to the platforms and storage described in [the verification record](verification.md).
