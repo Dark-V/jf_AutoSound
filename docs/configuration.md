@@ -8,9 +8,9 @@ No libraries are enabled initially. Audio and subtitles have separate switches. 
 
 To process just one series, enable its library and enter its absolute server path in **Only this folder**. The scan and preview stay inside that folder and its subfolders, even if additional parent levels are configured. Leave the field empty to process all folders in the enabled libraries.
 
-Nested folders containing `Audio`, `Sound`, `Sub`, `Subs`, `Subtitles`, `озвучка` or `субтитры` are recognized. Examples: `Rus Sound/NDA Studio`, `English Audio/Team`, `RUS Sound [Studio]`, `Rus Subs [Group]`. A generic folder name is not a language.
+Nested folders containing `Audio`, `Sound`, `Sub`, `Subs`, `Subtitles`, `озвучка` or `субтитры` are recognized. Examples: `Rus Sound/Example Voice`, `English Audio/Team`, `RUS Sound [Studio]`, `Rus Subs [Group]`. A generic folder name is not a language.
 
-The leaf folder (or its final `[Studio]` part) supplies the title. A language prefix such as `Rus`, `English`, `日本語` or an explicit ISO suffix supplies language. If no language is explicit, it stays undefined.
+The longest complete video basename takes precedence. For `Series S01E01.mkv` and `Series S01E01.ru.Alternate voice.mka`, the plugin uses `ru` as the language and `Alternate voice` as the track title. A label can differ from the folder name. If a suffix omits the title or language, the plugin uses the leaf folder (or its final `[Group]` part) for the title and a recognized language prefix for the language. If no language is explicit, it stays undefined.
 
 Only MKV/MP4 videos, MKA audio and ASS/SSA/SRT/VTT subtitles are included in this version. Other files are ignored. The plugin does not edit embedded stream metadata.
 
@@ -78,7 +78,7 @@ Only populated/explicit fields are included. An unlabelled track uses `External`
 
 The plugin reads explicit terminal filename tokens `default`, `forced`, `foreign`, `sdh`, `cc` and `hi`, following the Hindi/hearing-impaired distinction. For example, `Film.hi.srt` means Hindi; `Film.en.hi.srt` means English hearing-impaired. Rules can explicitly enable flags. Embedded metadata is left to Jellyfin.
 
-Jellyfin 12.4's [`ExternalPathParser`](https://github.com/jellyfin/jellyfin/blob/v12.4/Emby.Naming/ExternalFiles/ExternalPathParser.cs) recognizes `default`, `forced` and `foreign` by **substring**. Consequently a studio named `Default Studio` cannot safely be emitted literally. Sidecar Bridge reversibly percent-encodes one letter: `%44efault Studio`. Dots and unsafe filename characters are escaped too. A title that is itself a language code/name or hearing-impaired token gets a `Studio ` prefix. Ordinary `NDA Studio`, `SubsGroup` and `Signs` remain unchanged. This avoids accidental flags/languages, at the cost of a visible escape for reserved names.
+Jellyfin 12.4's [`ExternalPathParser`](https://github.com/jellyfin/jellyfin/blob/v12.4/Emby.Naming/ExternalFiles/ExternalPathParser.cs) recognizes `default`, `forced` and `foreign` by **substring**. Consequently a studio named `Default Studio` cannot safely be emitted literally. Sidecar Bridge reversibly percent-encodes one letter: `%44efault Studio`. Dots and unsafe filename characters are escaped too. A title that is itself a language code/name or hearing-impaired token gets a `Studio ` prefix. Ordinary `Example Voice`, `SubsGroup` and `Signs` remain unchanged. This avoids accidental flags/languages, at the cost of a visible escape for reserved names.
 
 MKA with several streams is different: Jellyfin preserves per-stream embedded metadata and ignores filename flags for multi-stream containers. A filename does not rename each stream, and an embedded title/language can take precedence over the filename. Sidecar Bridge does not rewrite tags.
 

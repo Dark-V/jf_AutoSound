@@ -11,26 +11,26 @@
 ## Было
 
 ```text
-Youjo Senki/
-├── Youjo Senki TV 01 серия.mkv
-├── Youjo Senki TV 02 серия.mkv
-├── Youjo Senki TV Sp 00 серия.mkv
-├── Youjo Senki TV Sp 01 серия.mkv
+Example Series/
+├── Example Series TV 01 серия.mkv
+├── Example Series TV 02 серия.mkv
+├── Example Series TV Sp 00 серия.mkv
+├── Example Series TV Sp 01 серия.mkv
 ├── Rus Sound/
-│   └── NDA Studio/
-│       ├── Youjo Senki TV 01 серия.mka
-│       └── Youjo Senki TV Sp 01 серия.mka
+│   └── Example Voice/
+│       ├── Example Series TV 01 серия.mka
+│       └── Example Series TV Sp 01 серия.mka
 └── Rus Subs/
     └── SubsGroup/
-        └── Youjo Senki TV 01 серия.ass
+        └── Example Series TV 01 серия.ass
 ```
 
 ## Что добавится рядом с видео
 
 ```text
-Youjo Senki TV 01 серия.NDA Studio.rus.mka
-Youjo Senki TV 01 серия.SubsGroup.rus.ass
-Youjo Senki TV Sp 01 серия.NDA Studio.rus.mka
+Example Series TV 01 серия.Example Voice.rus.mka
+Example Series TV 01 серия.SubsGroup.rus.ass
+Example Series TV Sp 01 серия.Example Voice.rus.mka
 ```
 
 Это дополнительные имена существующих файлов. Второй копии озвучки или субтитров на диске нет. В Jellyfin появятся внешние дорожки с языком и названием студии. Итоговая подпись зависит также от встроенных тегов и клиента.

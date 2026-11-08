@@ -15,7 +15,7 @@ Your files:
 ```text
 Film/
 ├── Film.mkv
-├── Rus Sound/NDA Studio/Film.mka
+├── Rus Sound/Example Voice/Film.mka
 └── Rus Subs/SubsGroup/Film.ass
 ```
 
@@ -24,13 +24,13 @@ Sidecar Bridge adds two names next to the video:
 ```text
 Film/
 ├── Film.mkv
-├── Film.NDA Studio.rus.mka     ← hardlink to the original audio
+├── Film.Example Voice.rus.mka     ← hardlink to the original audio
 ├── Film.SubsGroup.rus.ass      ← hardlink to the original subtitles
-├── Rus Sound/NDA Studio/Film.mka
+├── Rus Sound/Example Voice/Film.mka
 └── Rus Subs/SubsGroup/Film.ass
 ```
 
-Jellyfin's player can now list **NDA Studio / Russian** and **SubsGroup / Russian**. These are illustrative labels; embedded metadata and the client can affect the displayed title.
+Jellyfin's player can now list **Example Voice / Russian** and **SubsGroup / Russian**. These are illustrative labels; embedded metadata and the client can affect the displayed title.
 
 The same layout works with `Video/Film.mkv` and sibling `Audio/`, `Subs/`, `Subtitles/`, `RUS Sound [Studio]/` or `Rus Subs [Group]/` folders. Paths come from Jellyfin libraries. Downloads can arrive through SMB, a torrent client or a manual copy.
 

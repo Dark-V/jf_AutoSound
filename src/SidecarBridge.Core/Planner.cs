@@ -24,8 +24,7 @@ public static class Planner
                 if (directory.Length == 0 || (!TrackNaming.IsTrackDirectory(directory) && rule is null && mappings.Length == 0)) continue;
                 var parts = TrackNaming.Parse(source);
                 var directoryInfo = TrackNaming.FromDirectory(directory);
-                var title = !string.IsNullOrWhiteSpace(rule?.Title) ? rule.Title : directoryInfo.Title;
-                var labeled = false;
+                var sourceStem = Path.GetFileNameWithoutExtension(source);
                 var stem = parts.Stem;
                 if (rule is not null && !string.IsNullOrEmpty(rule.MatchPattern))
                     stem = Regex.Replace(stem, rule.MatchPattern, rule.MatchReplacement, RegexOptions.CultureInvariant, Matching.RegexTimeout);
@@ -41,28 +40,33 @@ public static class Planner
                 }
                 else
                 {
-                    // A literal basename match takes priority even if a title happens to
-                    // end in a language-looking word such as "It".
-                    (video, reason) = index.Match(Path.GetFileNameWithoutExtension(source));
-                    if (video is null && !reason.StartsWith("Ambiguous", StringComparison.Ordinal))
-                        (video, reason) = index.Match(stem);
-                    if (video is null && !reason.StartsWith("Ambiguous", StringComparison.Ordinal) &&
-                        string.IsNullOrEmpty(rule?.MatchPattern) && TrackNaming.ParseDirectoryTitleSuffix(source, parts, directoryInfo.Title) is { } candidate)
+                    (video, reason) = string.IsNullOrEmpty(rule?.MatchPattern)
+                        ? index.MatchCompletePrefix(sourceStem)
+                        : (null, "");
+                    if (reason.Length == 0)
                     {
-                        (video, reason) = index.Match(candidate.Parts.Stem);
-                        if (video is not null)
-                        {
-                            parts = candidate.Parts;
-                            if (string.IsNullOrWhiteSpace(rule?.Title)) title = candidate.Title;
-                            labeled = true;
-                        }
+                        (video, reason) = index.Match(sourceStem);
+                        if (video is null && !reason.StartsWith("Ambiguous", StringComparison.Ordinal))
+                            (video, reason) = index.Match(stem);
                     }
                 }
                 if (video is null) { skipped.Add(new(source, "", "Skipped", reason)); continue; }
+                var videoStem = Path.GetFileNameWithoutExtension(video);
+                var label = "";
+                // Only parse metadata after the matched video basename. Tokens in the
+                // basename itself may look like a language or flag (for example, "It").
+                if (sourceStem.Equals(videoStem, StringComparison.OrdinalIgnoreCase) ||
+                    sourceStem.StartsWith(videoStem + ".", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (PathSafety.Comparer.Equals(Path.GetDirectoryName(source), Path.GetDirectoryName(video))) continue;
+                    var suffix = sourceStem.Length == videoStem.Length ? "" : sourceStem[(videoStem.Length + 1)..];
+                    (parts, label) = TrackNaming.ParseSuffix(suffix);
+                }
+                var title = !string.IsNullOrWhiteSpace(rule?.Title) ? rule.Title : label.Length > 0 ? label : directoryInfo.Title;
                 var language = parts.Language ?? (rule is not null && !string.IsNullOrEmpty(rule.Language) ? TrackNaming.Language(rule.Language) : directoryInfo.Language);
                 if (rule is not null && !string.IsNullOrEmpty(rule.Language) && rule.Language != "und" && TrackNaming.Language(rule.Language) is null) throw new IOException("Unrecognized configured language; use an ISO language code or leave it empty.");
                 var destination = TrackNaming.Destination(video, source, title, language,
-                    parts.Default || (rule?.Default ?? false), parts.Forced || (rule?.Forced ?? false), parts.HearingImpaired || (rule?.HearingImpaired ?? false), labeled);
+                    parts.Default || (rule?.Default ?? false), parts.Forced || (rule?.Forced ?? false), parts.HearingImpaired || (rule?.HearingImpaired ?? false), languageFirst: label.Length > 0);
                 if (PathSafety.Comparer.Equals(source, destination)) continue;
                 plans.Add(new(source, destination, reason, video));
             }

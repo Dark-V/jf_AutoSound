@@ -44,7 +44,7 @@ root.mkdir(parents=True, exist_ok=True)
 if any(root.iterdir()):
     raise SystemExit('--work must be empty; nothing was deleted')
 media = root / 'media' / 'Bridge Film (2026)'
-audio = media / 'Rus Sound' / 'NDA Studio'
+audio = media / 'Rus Sound' / 'Example Voice'
 subs = media / 'Rus Subs' / 'SubsGroup'
 audio.mkdir(parents=True)
 subs.mkdir(parents=True)
@@ -273,27 +273,27 @@ def check_linked_episodes(user_id, settings):
     return {'versionCount': len(media_sources), 'scanRequestsAfterMerge': 1, 'pathsAndStreamsVerified': True, 'folderLimitVerified': True}
 
 
-def check_nia_liston(user_id):
-    # Same relative paths as the two episodes of the user's release. Seed the
-    # second with the working manual layout and leave the first for the plugin.
-    series = root / 'shows' / 'Kyouran Reijou Nia Liston [WEB-DL 1080p] [SubsPlus+]'
-    dub_dir = series / 'RUS Sound [StudioBand]'
-    signs_dir = dub_dir / 'надписи'
-    subs_dir = series / 'RUS Subs [Amediateka]'
+def check_track_suffixes(user_id):
+    # Deliberately different folder and filename labels. Seed the second episode
+    # with manually linked tracks and leave the first for the plugin.
+    series = root / 'shows' / 'Example Series [1080p]'
+    dub_dir = series / 'RUS Sound [Folder A]'
+    signs_dir = dub_dir / 'captions'
+    subs_dir = series / 'RUS Subs [Folder B]'
     signs_dir.mkdir(parents=True)
     subs_dir.mkdir()
-    fixture_sub = root / 'nia-subtitle.ass'
+    fixture_sub = root / 'suffix-subtitle.ass'
     ff('-i', sub, fixture_sub)
     os.utime(fixture_sub, (time.time()-120, time.time()-120))
     expected = {}
     for number, crc in ((1, '4EFEF51F'), (2, '333EA23D')):
-        stem = f'[SubsPlus+] Nia Liston - The Merciless Maiden - S01E{number:02d} (ADN WEB-DL 1080p AVC AAC) [{crc}]'
+        stem = f'[Example] Series - S01E{number:02d} (WEB 1080p) [{crc}]'
         episode = series / (stem + '.mkv')
         shutil.copy2(video, episode)
         expected[episode] = {}
         for folder, title, extension, fixture, kind in (
-            (dub_dir, 'StudioBand', 'mka', track, 'Audio'),
-            (subs_dir, 'Amediateka', 'ass', fixture_sub, 'Subtitle'),
+            (dub_dir, 'Alternate voice', 'mka', track, 'Audio'),
+            (subs_dir, 'Full translation', 'ass', fixture_sub, 'Subtitle'),
             (signs_dir, 'signs', 'ass', fixture_sub, 'Subtitle'),
         ):
             source = folder / f'{stem}.{title}.{extension}'
@@ -302,7 +302,7 @@ def check_nia_liston(user_id):
             if number == 2:
                 os.link(source, destination)
             expected[episode][destination] = (source, kind, title)
-        shutil.copy2(track, dub_dir / f'{stem}.Different Cut.mka')
+        shutil.copy2(track, dub_dir / f'{stem} Different Cut.mka')
 
     def verify_tracks():
         query = urllib.parse.urlencode({'userId': user_id, 'Recursive': 'true', 'IncludeItemTypes': 'Episode', 'Fields': 'Path'})
@@ -326,7 +326,7 @@ def check_nia_liston(user_id):
     verify_tracks()
     run_task('RefreshLibrary')
     verify_tracks()
-    print('PASS Nia Liston: automatic and manual layouts expose the same three tracks, without duplicates', flush=True)
+    print('PASS track suffixes: automatic and manual layouts expose the same three tracks, without duplicates', flush=True)
     return {'autoLinkedTracks': 3, 'preexistingTracks': 3, 'idempotent': True}
 
 
@@ -457,7 +457,7 @@ try:
     proof['D']={'anonymousDiagnosticsDenied':True,'previewReadOnly':True}
     proof['E']={'reservedStudioNotAFlag':True,'signsNotForced':True,'explicitSubtitleFlags':True,'multiStreamMetadataPreserved':True}
     proof['linkedEpisodes'] = check_linked_episodes(user, config_body)
-    proof['niaListon'] = check_nia_liston(user)
+    proof['trackSuffixes'] = check_track_suffixes(user)
     for path,digest in originals.items(): assert hashlib.sha256(Path(path).read_bytes()).hexdigest()==digest
     (root/'proof.json').write_text(json.dumps(proof,ensure_ascii=False,indent=2),encoding='utf-8')
     print('PASS A: first scan registers hardlinked audio + subtitle in MediaStreams')

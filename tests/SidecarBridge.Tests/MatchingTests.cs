@@ -6,14 +6,14 @@ namespace SidecarBridge.Tests;
 public sealed class MatchingTests
 {
     [Fact]
-    public void YoujoRegularAndSpecialsNeverMix()
+    public void RegularEpisodesAndSpecialsNeverMix()
     {
-        var videos = Enumerable.Range(1, 12).Select(i => $"Youjo Senki TV {i:00} серия.mkv")
-            .Concat(Enumerable.Range(0, 13).Select(i => $"Youjo Senki TV Sp {i:00} серия.mkv")).ToArray();
+        var videos = Enumerable.Range(1, 12).Select(i => $"Example Series TV {i:00} серия.mkv")
+            .Concat(Enumerable.Range(0, 13).Select(i => $"Example Series TV Sp {i:00} серия.mkv")).ToArray();
         foreach (var video in videos)
             Assert.Equal(video, Matching.Match(Path.GetFileNameWithoutExtension(video), videos).Video);
-        Assert.NotEqual(Matching.ParseEpisode("Youjo Senki TV 01 серия"), Matching.ParseEpisode("Youjo Senki TV Sp 01 серия"));
-        Assert.Equal(0, Matching.ParseEpisode("Youjo Senki TV Sp 00 серия")!.Episode);
+        Assert.NotEqual(Matching.ParseEpisode("Example Series TV 01 серия"), Matching.ParseEpisode("Example Series TV Sp 01 серия"));
+        Assert.Equal(0, Matching.ParseEpisode("Example Series TV Sp 00 серия")!.Episode);
     }
     [Theory]
     [InlineData("Show S01E02", "Show 1x02.mkv")]
@@ -44,8 +44,35 @@ public sealed class MatchingTests
         Assert.Null(Matching.Match("Show Episode 02", ["Show 02 серия.mkv", "Show 02 серия.mp4"]).Video);
         Assert.Null(Matching.Match("show 01", ["Show 01.mkv", "SHOW 01.mp4"]).Video);
     }
+    [Fact]
+    public void CompletePrefixChoosesLongestVideoBasename()
+    {
+        var index = new Matching.VideoIndex(["Series S01E01.mkv", "Series S01E01.Extended.mkv"]);
+        Assert.Equal("Series S01E01.Extended.mkv", index.MatchCompletePrefix("Series S01E01.Extended.ru.Any label").Video);
+        Assert.Null(index.MatchCompletePrefix("Series S01E01 Extended.ru.Any label").Video);
+        Assert.Null(index.MatchCompletePrefix("Series S02E01.ru.Any label").Video);
+    }
+    [Fact]
+    public void CompletePrefixDoesNotFallThroughAnAmbiguousLongerMatch()
+    {
+        var index = new Matching.VideoIndex(["Series S01E01.mkv", "Series S01E01.Extended.mkv", "Series S01E01.Extended.mp4"]);
+        var match = index.MatchCompletePrefix("Series S01E01.Extended.Commentary");
+        Assert.Null(match.Video);
+        Assert.StartsWith("Ambiguous", match.Reason);
+    }
     [Theory]
-    [InlineData("NDA Studio", "NDA Studio")]
+    [InlineData("ru.Alternate voice.forced", "Alternate voice", true)]
+    [InlineData("Alternate voice.rus.forced", "Alternate voice", true)]
+    [InlineData("ru.Unforced commentary", "Unforced commentary", false)]
+    public void SuffixKeepsLabelsAndRecognizesOnlyExplicitFlags(string suffix, string title, bool forced)
+    {
+        var parsed = TrackNaming.ParseSuffix(suffix);
+        Assert.Equal(title, parsed.Title);
+        Assert.Equal("rus", parsed.Parts.Language);
+        Assert.Equal(forced, parsed.Parts.Forced);
+    }
+    [Theory]
+    [InlineData("Example Voice", "Example Voice")]
     [InlineData("Signs", "Signs")]
     [InlineData("Default Studio", "%44efault Studio")]
     [InlineData("Unforced Team", "Un%66orced Team")]
@@ -53,7 +80,7 @@ public sealed class MatchingTests
     [InlineData("A.B", "A%2EB")]
     public void TitlesCannotBecomeFlagsOrLanguage(string title, string expected) => Assert.Equal(expected, TrackNaming.SafeTitle(title));
     [Theory]
-    [InlineData("Rus Sound/NDA Studio", "NDA Studio", "rus")]
+    [InlineData("Rus Sound/Example Voice", "Example Voice", "rus")]
     [InlineData("English Audio/Team", "Team", "eng")]
     [InlineData("Subtitles/Signs", "Signs", null)]
     [InlineData("RUS Sound [Studio]", "Studio", "rus")]

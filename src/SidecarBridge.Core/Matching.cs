@@ -31,14 +31,26 @@ public static class Matching
     public sealed class VideoIndex
     {
         private readonly Dictionary<string, string[]> _exact;
+        private readonly Dictionary<string, string[]> _complete;
         private readonly Dictionary<string, string[]> _normal;
         private readonly Dictionary<EpisodeKey, string[]> _episodes;
         public VideoIndex(IEnumerable<string> videos)
         {
             var names = videos.Select(v => (Path: v, Stem: Path.GetFileNameWithoutExtension(v))).ToArray();
             _exact = names.GroupBy(v => v.Stem, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Select(v => v.Path).ToArray(), StringComparer.Ordinal);
+            _complete = names.GroupBy(v => v.Stem, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.Select(v => v.Path).ToArray(), StringComparer.OrdinalIgnoreCase);
             _normal = names.GroupBy(v => Normalize(v.Stem), StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Select(v => v.Path).ToArray(), StringComparer.Ordinal);
             _episodes = names.Select(v => (v.Path, Key: ParseEpisode(v.Stem))).Where(v => v.Key is not null).GroupBy(v => v.Key!).ToDictionary(g => g.Key, g => g.Select(v => v.Path).ToArray());
+        }
+        public (string? Video, string Reason) MatchCompletePrefix(string sourceStem)
+        {
+            if (_exact.TryGetValue(sourceStem, out var exact)) return Unique(exact, "Exact basename");
+            if (_complete.TryGetValue(sourceStem, out var complete)) return Unique(complete, "Complete basename");
+            // Work from the longest complete basename down, without dropping release or episode text.
+            for (var dot = sourceStem.LastIndexOf('.'); dot > 0; dot = sourceStem.LastIndexOf('.', dot - 1))
+                if (_complete.TryGetValue(sourceStem[..dot], out var matches)) return Unique(matches, "Complete basename before track suffix");
+            return (null, "");
         }
         public (string? Video, string Reason) Match(string sourceStem)
         {

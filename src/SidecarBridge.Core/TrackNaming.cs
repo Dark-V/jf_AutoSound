@@ -32,42 +32,33 @@ public static class TrackNaming
         return null;
     }
     public sealed record NameParts(string Stem, string? Language, bool Default, bool Forced, bool HearingImpaired);
-    public static NameParts Parse(string source)
+    public static NameParts Parse(string source) => ParseTokens(Path.GetFileNameWithoutExtension(source).Split('.'), 1).Parts;
+
+    public static (NameParts Parts, string Title) ParseSuffix(string suffix) => ParseTokens(suffix.Split('.'), 0);
+
+    private static (NameParts Parts, string Title) ParseTokens(string[] tokens, int minimumStemParts)
     {
-        var parts = Path.GetFileNameWithoutExtension(source).Split('.').ToList();
         string? language = null;
         bool isDefault = false, forced = false, hearing = false;
-        while (parts.Count > 1)
+        var title = new List<string>();
+        var i = tokens.Length - 1;
+        for (; i >= minimumStemParts; i--)
         {
-            var last = parts[^1];
+            var last = tokens[i];
             if (last.Equals("default", StringComparison.OrdinalIgnoreCase)) isDefault = true;
             else if (last.Equals("forced", StringComparison.OrdinalIgnoreCase) || last.Equals("foreign", StringComparison.OrdinalIgnoreCase)) forced = true;
             else if (last.Equals("sdh", StringComparison.OrdinalIgnoreCase) || last.Equals("cc", StringComparison.OrdinalIgnoreCase)) hearing = true;
             else if (last.Equals("hi", StringComparison.OrdinalIgnoreCase) && language is not null) hearing = true;
             else if (Language(last) is { } other && language == "hin" && other != "hin") { language = other; hearing = true; }
-            else if (Language(last) is { } known && language is null) language = known;
-            else if (last.Equals("und", StringComparison.OrdinalIgnoreCase)) { }
-            else break;
-            parts.RemoveAt(parts.Count - 1);
+            else if (Language(last) is { } known && (language is null || minimumStemParts == 0)) language ??= known;
+            else if (!last.Equals("und", StringComparison.OrdinalIgnoreCase))
+            {
+                if (minimumStemParts != 0) break;
+                if (!string.IsNullOrWhiteSpace(last)) title.Add(last.Trim());
+            }
         }
-        return new(string.Join('.', parts), language, isDefault, forced, hearing);
-    }
-    public static (NameParts Parts, string Title)? ParseDirectoryTitleSuffix(string source, NameParts parts, string directoryTitle)
-    {
-        var extension = Path.GetExtension(source);
-        var suffix = "." + directoryTitle;
-        if (directoryTitle.Length == 0 || !parts.Stem.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
-        {
-            if (!directoryTitle.Equals("надписи", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".mka", StringComparison.OrdinalIgnoreCase) ||
-                !parts.Stem.EndsWith(".signs", StringComparison.OrdinalIgnoreCase)) return null;
-            suffix = ".signs";
-        }
-        var prefixLength = parts.Stem.Length - suffix.Length;
-        if (prefixLength == 0) return null;
-        // Remove only the verified title, then parse language and flags on either side of it.
-        var trailing = Path.GetFileNameWithoutExtension(source)[parts.Stem.Length..];
-        return (Parse(parts.Stem[..prefixLength] + trailing + extension), parts.Stem[(prefixLength + 1)..]);
+        title.Reverse();
+        return (new(string.Join('.', tokens.Take(i + 1)), language, isDefault, forced, hearing), string.Join('.', title));
     }
     public static bool IsTrackDirectory(string relative) => relative.Split('/').Any(part =>
         Regex.IsMatch(part, @"\b(audio|sound|subs?|subtitles|озвучк\p{L}*|субтитры)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, Matching.RegexTimeout));
@@ -99,7 +90,7 @@ public static class TrackNaming
     public static string Destination(string video, string source, string title, string? language, bool isDefault, bool forced, bool hearing, bool languageFirst = false)
     {
         var suffix = new List<string>();
-        // Match pre-existing .ru.<title> links for release files with a verified title suffix.
+        // Preserve the established language-first convention for labels from filenames.
         if (languageFirst && language is not null) suffix.Add(language == "rus" ? "ru" : language);
         if (!string.IsNullOrWhiteSpace(title)) suffix.Add(SafeTitle(title));
         if (!languageFirst && language is not null) suffix.Add(language);

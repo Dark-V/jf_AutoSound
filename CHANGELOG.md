@@ -1,9 +1,14 @@
 # Changelog
 
+## 1.0.3.0
+
+- Match the longest complete video basename before a dot-separated track suffix. Read the suffix as track metadata and use the folder to fill in missing information.
+- Keep the existing checks for episode type, numbering, edition, and ambiguous matches when a complete basename is unavailable.
+
 ## 1.0.2.0
 
-- Match external tracks whose filenames end in a title confirmed by their folder, such as `.StudioBand.mka`, `.Amediateka.ass` and `.signs.ass` under `надписи`.
-- Create the matching `.ru.<title>` hardlinks and recognize existing links with those names. Verify the working and automatic layouts through Jellyfin's playback API.
+- Support track labels when a filename suffix agrees with its containing directory.
+- Reuse existing hardlinks when their destination name matches the planned link and both paths point to the same file.
 - Add an optional folder limit so a normal scan can process one series inside an enabled library.
 
 ## 1.0.1.0

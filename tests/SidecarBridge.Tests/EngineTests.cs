@@ -10,7 +10,7 @@ public sealed class EngineTests : IDisposable
     private string State => Path.Combine(_root, "state");
     private string Scope => Path.Combine(_root, "media");
     private string Video => Path.Combine(Scope, "Video", "Film.mkv");
-    private string Source => Path.Combine(Scope, "Rus Sound", "NDA Studio", "Film.mka");
+    private string Source => Path.Combine(Scope, "Rus Sound", "Example Voice", "Film.mka");
     public EngineTests() { Write(Video); Write(Source); }
     private static void Write(string path, string text = "test-media-content")
     {
@@ -64,7 +64,7 @@ public sealed class EngineTests : IDisposable
     [Fact]
     public async Task ExistingForeignHardlinkIsNotAdopted()
     {
-        var link = Path.Combine(Path.GetDirectoryName(Video)!, "Film.NDA Studio.rus.mka"); NativeFiles.CreateLink(Source, link);
+        var link = Path.Combine(Path.GetDirectoryName(Video)!, "Film.Example Voice.rus.mka"); NativeFiles.CreateLink(Source, link);
         var engine = new BridgeEngine(State); var result = await Run(engine);
         Assert.Contains(result.Entries, e => e.Status == "Existing");
         File.Delete(Source);
@@ -73,7 +73,7 @@ public sealed class EngineTests : IDisposable
     [Fact]
     public async Task CollisionNeverChoosesAStudioArbitrarily()
     {
-        Write(Path.Combine(Scope, "Audio", "NDA Studio", "Film.rus.mka"));
+        Write(Path.Combine(Scope, "Audio", "Example Voice", "Film.rus.mka"));
         var result = await Run(new BridgeEngine(State)); Assert.Empty(result.ChangedPaths);
         Assert.Equal(2, result.Entries.Count(e => e.Status == "Conflict"));
     }
@@ -145,7 +145,7 @@ public sealed class EngineTests : IDisposable
     [Fact]
     public async Task EscapingExplicitMappingIsRejected()
     {
-        var settings = new BridgeSettings { ExplicitMappings = [new() { Source = "Rus Sound/NDA Studio/Film.mka", Video = "../../escape.mkv" }] };
+        var settings = new BridgeSettings { ExplicitMappings = [new() { Source = "Rus Sound/Example Voice/Film.mka", Video = "../../escape.mkv" }] };
         var result = await Run(new BridgeEngine(State), settings); Assert.Empty(result.ChangedPaths);
         Assert.Contains(result.Entries, e => e.Status == "Skipped" && e.Reason.Contains("escape", StringComparison.OrdinalIgnoreCase));
     }

@@ -4,8 +4,8 @@
 <g font-family="Segoe UI,Arial,sans-serif"><text x="60" y="65" fill="#25d9e9" font-size="16" font-weight="700" letter-spacing="3">HARDLINKS, EXPLAINED</text>
 <text x="60" y="120" fill="#fff" font-size="40" font-weight="700">Two names. One file.</text>
 <text x="60" y="161" fill="#a8b4ce" font-size="21">Sidecar Bridge adds a directory entry. The audio bytes are shared.</text>
-<rect x="60" y="219" width="702" height="80" rx="15" fill="#241e3d" stroke="#a474ff"/><text x="84" y="249" fill="#c4a2ff" font-size="15" font-weight="700">ORIGINAL PATH</text><text x="84" y="280" fill="#fff" font-size="21" font-family="Consolas,monospace">Rus Sound/NDA Studio/Film.mka</text>
-<rect x="60" y="332" width="702" height="80" rx="15" fill="#12343f" stroke="#25d9e9"/><text x="84" y="362" fill="#25d9e9" font-size="15" font-weight="700">JELLYFIN-FRIENDLY HARDLINK</text><text x="84" y="393" fill="#fff" font-size="21" font-family="Consolas,monospace">Film.NDA Studio.rus.mka</text>
+<rect x="60" y="219" width="702" height="80" rx="15" fill="#241e3d" stroke="#a474ff"/><text x="84" y="249" fill="#c4a2ff" font-size="15" font-weight="700">ORIGINAL PATH</text><text x="84" y="280" fill="#fff" font-size="21" font-family="Consolas,monospace">Rus Sound/Example Voice/Film.mka</text>
+<rect x="60" y="332" width="702" height="80" rx="15" fill="#12343f" stroke="#25d9e9"/><text x="84" y="362" fill="#25d9e9" font-size="15" font-weight="700">JELLYFIN-FRIENDLY HARDLINK</text><text x="84" y="393" fill="#fff" font-size="21" font-family="Consolas,monospace">Film.Example Voice.rus.mka</text>
 <g fill="none" stroke-width="4"><path d="M762 259h99v57h66" stroke="#a474ff"/><path d="M762 372h99v-56" stroke="#25d9e9"/></g>
 <rect x="928" y="225" width="450" height="181" rx="23" fill="#192236" stroke="#455572"/><text x="966" y="269" fill="#fff" font-size="24" font-weight="700">ONE FILE IDENTITY</text>
 <path d="M975 320v25m25-47v69m25-58v47m25-72v92m25-59v32m25-45v61" fill="none" stroke="#25d9e9" stroke-width="10" stroke-linecap="round"/>

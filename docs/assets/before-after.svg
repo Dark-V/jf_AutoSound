@@ -10,10 +10,10 @@
 <text x="84" y="248" fill="#c4a2ff" font-size="18" font-weight="700">BEFORE / SOURCE FOLDERS</text>
 <text x="790" y="248" fill="#25d9e9" font-size="18" font-weight="700">AFTER / NEXT TO THE VIDEO</text>
 <g font-family="Consolas,monospace" font-size="19" fill="#dce5f7">
-<text x="84" y="294">Film/</text><text x="105" y="331">├─ Film.mkv</text><text x="105" y="368">├─ Rus Sound/</text><text x="105" y="405">│  └─ NDA Studio/</text><text x="105" y="442">│     └─ Film.mka</text><text x="105" y="479">└─ Rus Subs/</text><text x="105" y="516">   └─ SubsGroup/</text><text x="105" y="553">      └─ Film.ass</text>
-<text x="790" y="294">Film/</text><text x="811" y="331">├─ Film.mkv</text><text x="811" y="368" fill="#25d9e9">├─ Film.NDA Studio.rus.mka</text><text x="811" y="405" fill="#25d9e9">├─ Film.SubsGroup.rus.ass</text><text x="811" y="454">├─ Rus Sound/  [originals]</text><text x="811" y="491">└─ Rus Subs/   [originals]</text>
+<text x="84" y="294">Film/</text><text x="105" y="331">├─ Film.mkv</text><text x="105" y="368">├─ Rus Sound/</text><text x="105" y="405">│  └─ Example Voice/</text><text x="105" y="442">│     └─ Film.mka</text><text x="105" y="479">└─ Rus Subs/</text><text x="105" y="516">   └─ SubsGroup/</text><text x="105" y="553">      └─ Film.ass</text>
+<text x="790" y="294">Film/</text><text x="811" y="331">├─ Film.mkv</text><text x="811" y="368" fill="#25d9e9">├─ Film.Example Voice.rus.mka</text><text x="811" y="405" fill="#25d9e9">├─ Film.SubsGroup.rus.ass</text><text x="811" y="454">├─ Rus Sound/  [originals]</text><text x="811" y="491">└─ Rus Subs/   [originals]</text>
 </g><rect x="790" y="526" width="564" height="43" rx="9" fill="#123f47"/><text x="808" y="554" fill="#7ae5e6" font-size="17">+ 2 hardlinks · same files · no duplicate media data</text>
 <path d="M692 389h43m-13-13 13 13-13 13" fill="none" stroke="url(#accent)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
 <rect x="52" y="630" width="1336" height="66" rx="16" fill="#22304a"/>
-<text x="82" y="671" fill="#fff" font-size="21" font-weight="700">JELLYFIN PLAYER</text><text x="355" y="671" fill="#dce5f7" font-size="21">Audio: NDA Studio / Russian</text><text x="880" y="671" fill="#dce5f7" font-size="21">Subtitles: SubsGroup / Russian</text>
+<text x="82" y="671" fill="#fff" font-size="21" font-weight="700">JELLYFIN PLAYER</text><text x="355" y="671" fill="#dce5f7" font-size="21">Audio: Example Voice / Russian</text><text x="880" y="671" fill="#dce5f7" font-size="21">Subtitles: SubsGroup / Russian</text>
 </g></svg>
